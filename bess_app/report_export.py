@@ -17,6 +17,7 @@ GREEN = "4F9B27"
 GREEN_DARK = "2D711B"
 GREEN_LIGHT = "E8F4EB"
 BLUE_LIGHT = "D7E8F5"
+RED_LIGHT = "F7DEDE"
 TEXT = "0A1D32"
 WHITE = "FFFFFF"
 LINE = "D9E3EB"
@@ -40,6 +41,19 @@ def sanitize_filename_part(value: Any, fallback: str = "raport") -> str:
     text = str(value or fallback).strip()
     text = re.sub(r"[^A-Za-z0-9_-]+", "_", text)
     return text.strip("_") or fallback
+
+
+def safe_sheet_title(value: Any, fallback: str, existing: set[str]) -> str:
+    title = re.sub(r"[\[\]\:\*\?\/\\]+", " ", str(value or fallback)).strip() or fallback
+    title = title[:31]
+    base = title
+    suffix = 2
+    while title in existing:
+        marker = f" {suffix}"
+        title = f"{base[:31 - len(marker)]}{marker}"
+        suffix += 1
+    existing.add(title)
+    return title
 
 
 def style_title(cell) -> None:
@@ -106,11 +120,22 @@ def month_label(row: Dict[str, Any], index: int) -> str:
     return str(row.get("month") or (MONTHS[index] if index < len(MONTHS) else index + 1))
 
 
+def bess_action(row: Dict[str, Any]) -> str:
+    if as_float(row.get("charge_mwh")) > 0:
+        return "Incarcare"
+    if as_float(row.get("discharge_mwh")) > 0:
+        return "Descarcare"
+    return "Standby"
+
+
 def create_dashboard_sheet(wb: Workbook, dashboard: Dict[str, Any], project_name: str) -> None:
     ws = wb.create_sheet("Dashboard")
     ws.sheet_view.showGridLines = False
     ws.freeze_panes = "A12"
-    set_widths(ws, {"A": 16, "B": 16, "C": 16, "D": 16, "E": 16, "F": 16, "G": 16, "H": 16})
+    set_widths(
+        ws,
+        {"A": 16, "B": 16, "C": 16, "D": 16, "E": 16, "F": 16, "G": 16, "H": 16, "I": 4, "J": 16, "K": 16, "L": 16, "M": 16},
+    )
 
     ws.merge_cells("A1:H1")
     ws["A1"] = "SIMULATOR BESS - DASHBOARD"
@@ -167,6 +192,21 @@ def create_dashboard_sheet(wb: Workbook, dashboard: Dict[str, Any], project_name
         scenario_rows,
     )
 
+    if scenario_rows:
+        chart = BarChart()
+        chart.type = "col"
+        chart.style = 10
+        chart.title = "Comparator scenarii - pret mediu anual"
+        chart.y_axis.title = "lei/MWh"
+        chart.x_axis.title = "Scenariu"
+        data = Reference(ws, min_col=6, max_col=7, min_row=12, max_row=scenario_end_row)
+        cats = Reference(ws, min_col=1, min_row=13, max_row=scenario_end_row)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        chart.height = 7
+        chart.width = 16
+        ws.add_chart(chart, "J12")
+
     monthly_section_row = scenario_end_row + 3
     ws.merge_cells(start_row=monthly_section_row, start_column=1, end_row=monthly_section_row, end_column=8)
     ws.cell(monthly_section_row, 1, "Preturi medii lunare")
@@ -198,8 +238,8 @@ def create_dashboard_sheet(wb: Workbook, dashboard: Dict[str, Any], project_name
         chart.title = "Fara BESS vs Cu BESS"
         chart.y_axis.title = "lei/MWh"
         chart.x_axis.title = "Luna"
-        data = Reference(ws, min_col=2, max_col=3, min_row=12, max_row=end_row)
-        cats = Reference(ws, min_col=1, min_row=13, max_row=end_row)
+        data = Reference(ws, min_col=2, max_col=3, min_row=monthly_section_row + 1, max_row=end_row)
+        cats = Reference(ws, min_col=1, min_row=monthly_section_row + 2, max_row=end_row)
         chart.add_data(data, titles_from_data=True)
         chart.set_categories(cats)
         chart.height = 7
@@ -211,7 +251,7 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
     ws = wb.create_sheet("Sinteza financiara")
     ws.sheet_view.showGridLines = False
     ws.freeze_panes = "A10"
-    set_widths(ws, {"A": 24, "B": 18, "C": 18, "D": 18, "E": 18, "F": 20, "G": 34})
+    set_widths(ws, {"A": 24, "B": 18, "C": 18, "D": 18, "E": 18, "F": 20, "G": 34, "H": 4, "I": 18, "J": 18, "K": 18})
 
     assumptions = summary.get("assumptions") or {}
     annual = summary.get("annual") or {}
@@ -274,6 +314,22 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
         monthly_rows,
     )
 
+    if monthly_rows:
+        client = safe_text(assumptions.get("client") or "Client")
+        chart = BarChart()
+        chart.type = "col"
+        chart.style = 10
+        chart.title = f"{client} - {summary.get('scenarioName') or '-'} | preturi lunare"
+        chart.y_axis.title = "lei/MWh"
+        chart.x_axis.title = "Luna"
+        data = Reference(ws, min_col=2, max_col=4, min_row=start + 1, max_row=end_month)
+        cats = Reference(ws, min_col=1, min_row=start + 2, max_row=end_month)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        chart.height = 7
+        chart.width = 16
+        ws.add_chart(chart, "I18")
+
     annual_start = end_month + 3
     ws.merge_cells(start_row=annual_start, start_column=1, end_row=annual_start, end_column=7)
     ws.cell(annual_start, 1, "Sinteza anuala")
@@ -301,8 +357,8 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
     )
 
 
-def create_scenario_sheet(wb: Workbook, scenario: Dict[str, Any]) -> None:
-    ws = wb.create_sheet("Scenariu selectat")
+def create_scenario_sheet(wb: Workbook, scenario: Dict[str, Any], title: str = "Scenariu selectat") -> None:
+    ws = wb.create_sheet(title)
     ws.sheet_view.showGridLines = False
     ws.freeze_panes = "A9"
     widths = {
@@ -320,11 +376,13 @@ def create_scenario_sheet(wb: Workbook, scenario: Dict[str, Any]) -> None:
         "L": 14,
         "M": 16,
         "N": 16,
+        "O": 16,
+        "P": 16,
     }
     set_widths(ws, widths)
 
-    ws.merge_cells("A1:N1")
-    ws["A1"] = "SCENARIU SELECTAT - VALORI INGHETATE"
+    ws.merge_cells("A1:P1")
+    ws["A1"] = "SCENARIU SELECTAT - COMPORTAMENT INCARCARE / DESCARCARE"
     style_title(ws["A1"])
     ws["A3"] = "Scenariu"
     ws["B3"] = safe_text(scenario.get("name") or "-")
@@ -361,6 +419,7 @@ def create_scenario_sheet(wb: Workbook, scenario: Dict[str, Any]) -> None:
         "Incarcare retea MWh",
         "Incarcare PV MWh",
         "Descarcare MWh",
+        "Actiune BESS",
         "SOC final MWh",
         "Achizitie neta MWh",
         "Cost fara BESS lei",
@@ -380,6 +439,7 @@ def create_scenario_sheet(wb: Workbook, scenario: Dict[str, Any]) -> None:
             as_float(row.get("grid_charge_mwh")),
             as_float(row.get("pv_charge_mwh")),
             as_float(row.get("discharge_mwh")),
+            bess_action(row),
             as_float(row.get("soc_final_mwh")),
             as_float(row.get("net_purchase_mwh")),
             as_float(row.get("cost_without_bess_lei")),
@@ -388,7 +448,18 @@ def create_scenario_sheet(wb: Workbook, scenario: Dict[str, Any]) -> None:
         ]
         for row in hourly
     ]
-    write_rows(ws, 8, headers, rows)
+    end_row = write_rows(ws, 8, headers, rows)
+    ws.auto_filter.ref = f"A8:P{end_row}"
+    for row_index in range(9, end_row + 1):
+        action = str(ws.cell(row_index, 11).value or "")
+        if action == "Incarcare":
+            fill = PatternFill("solid", fgColor=GREEN_LIGHT)
+        elif action == "Descarcare":
+            fill = PatternFill("solid", fgColor=RED_LIGHT)
+        else:
+            continue
+        ws.cell(row_index, 11).fill = fill
+        ws.cell(row_index, 11).font = Font(bold=True, color=TEXT)
 
 
 def assert_no_formulas(wb: Workbook) -> None:
@@ -412,6 +483,7 @@ def generate_complete_report_xlsx(payload: Dict[str, Any]) -> bytes:
     dashboard = payload.get("dashboard") or {}
     summary = payload.get("financialSummary") or {}
     scenario = payload.get("scenario") or {}
+    scenarios = payload.get("scenarios") or []
     project_name = str(payload.get("projectName") or "Proiect BESS")
 
     if not dashboard:
@@ -429,7 +501,16 @@ def generate_complete_report_xlsx(payload: Dict[str, Any]) -> bytes:
 
     create_dashboard_sheet(wb, dashboard, project_name)
     create_financial_sheet(wb, summary)
-    create_scenario_sheet(wb, scenario)
+    existing_titles = {ws.title for ws in wb.worksheets}
+    create_scenario_sheet(wb, scenario, safe_sheet_title("Scenariu selectat", "Scenariu selectat", existing_titles))
+    selected_name = str(scenario.get("name") or "")
+    for item in scenarios:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("name") or "") == selected_name:
+            continue
+        title = safe_sheet_title(f"Scenariu {item.get('name') or ''}", "Scenariu", existing_titles)
+        create_scenario_sheet(wb, item, title)
 
     assert_no_formulas(wb)
     output = io.BytesIO()

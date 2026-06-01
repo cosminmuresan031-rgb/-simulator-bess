@@ -1042,14 +1042,18 @@ function resetResultsView() {
   $("metricBest").textContent = "-";
   $("activeScenario").innerHTML = "";
   $("monthlyScenario").innerHTML = "";
+  $("scenarioTabs").innerHTML = "";
   $("annualNoBess").textContent = "0,00";
   $("annualWithBess").textContent = "0,00";
   $("annualReduction").textContent = "0,00";
   $("annualCharges").textContent = "0";
   $("annualDischarges").textContent = "0";
   $("scenarioCostRows").innerHTML = "";
+  $("scenarioBehaviorRows").innerHTML = "";
+  $("scenarioBehaviorCount").textContent = "0 ore";
   $("monthlyRows").innerHTML = "";
-  drawChart([]);
+  drawScenarioComparisonChart([], null);
+  drawMonthlyChart([]);
   renderFinancialSummary(null);
   setMessages([]);
 }
@@ -1498,6 +1502,7 @@ async function exportCompleteReport() {
         dashboard,
         financialSummary: summary,
         scenario: clone(scenario),
+        scenarios: clone(state.result.scenarios || []),
       }),
     });
     if (!response.ok) {
@@ -1540,6 +1545,25 @@ function syncScenarioSelectors(activeName) {
   });
 }
 
+function renderScenarioTabs(activeName) {
+  const tabs = $("scenarioTabs");
+  tabs.innerHTML = "";
+  (state.result?.scenarios || []).forEach((scenario) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.scenario = scenario.name;
+    button.className = scenario.name === activeName ? "active" : "";
+    button.textContent = scenario.name;
+    tabs.appendChild(button);
+  });
+}
+
+function bessAction(row) {
+  if ((Number(row.charge_mwh) || 0) > 0) return "Incarcare";
+  if ((Number(row.discharge_mwh) || 0) > 0) return "Descarcare";
+  return "Standby";
+}
+
 function invalidateFinancialSummary() {
   if (state.isApplyingProject) return;
   const project = activeProject();
@@ -1578,6 +1602,7 @@ function renderScenario(name, options = {}) {
   if (!scenario) return;
   state.activeScenario = scenario.name;
   syncScenarioSelectors(scenario.name);
+  renderScenarioTabs(scenario.name);
   const snapshot = buildDashboardSnapshot(state.result, scenario.name);
   const annual = scenario.summary.annual;
   $("annualNoBess").textContent = numberFormat.format(annual.arithmetic_avg_monthly_without_bess_lei_mwh);
@@ -1606,7 +1631,9 @@ function renderScenario(name, options = {}) {
     tbody.appendChild(tr);
   });
   renderScenarioCosts(scenario.name);
-  drawChart(scenario.summary.monthly);
+  renderScenarioBehavior(scenario);
+  drawScenarioComparisonChart(state.result.scenarios, scenario.name);
+  drawMonthlyChart(scenario.summary.monthly);
   if (options.persist) {
     persistDashboardSelection(snapshot);
     renderFinancialSummary(activeSimulation()?.financialSummary || null);
@@ -1637,7 +1664,107 @@ function renderScenarioCosts(activeName) {
   });
 }
 
-function drawChart(monthly) {
+function renderScenarioBehavior(scenario) {
+  const tbody = $("scenarioBehaviorRows");
+  tbody.innerHTML = "";
+  const actionRows = (scenario.hourly || []).filter((row) => bessAction(row) !== "Standby");
+  $("scenarioBehaviorCount").textContent = `${actionRows.length} ore`;
+  if (!actionRows.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 8;
+    td.textContent = "Nu exista ore de incarcare sau descarcare pentru scenariul selectat.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  actionRows.forEach((row) => {
+    const action = bessAction(row);
+    const tr = document.createElement("tr");
+    tr.className = action === "Incarcare" ? "charge" : "discharge";
+    [
+      row.timestamp || "",
+      action,
+      numberFormat.format(Number(row.price_lei_mwh) || 0),
+      numberFormat.format(Number(row.charge_mwh) || 0),
+      numberFormat.format(Number(row.discharge_mwh) || 0),
+      numberFormat.format(Number(row.soc_start_mwh) || 0),
+      numberFormat.format(Number(row.soc_final_mwh) || 0),
+      formatLei(Number(row.cost_with_bess_lei) || 0),
+    ].forEach((value) => {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.appendChild(td);
+    });
+    fragment.appendChild(tr);
+  });
+  tbody.appendChild(fragment);
+}
+
+function drawScenarioComparisonChart(scenarios, activeName) {
+  const canvas = $("scenarioComparisonChart");
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  const rows = scenarioCostsFromResult({ scenarios });
+  ctx.fillStyle = "#0a1d32";
+  ctx.font = "700 18px Montserrat, Arial";
+  ctx.fillText("Comparator scenarii - pret mediu anual", 28, 28);
+  if (!rows.length) return;
+
+  const paddingLeft = 56;
+  const paddingRight = 26;
+  const paddingTop = 58;
+  const paddingBottom = 54;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+  const max = Math.max(...rows.flatMap((row) => [row.priceWithoutBessLeiMwh, row.priceWithBessLeiMwh]), 1);
+  const groupW = plotW / rows.length;
+  const barW = Math.max(12, Math.min(32, groupW * 0.26));
+
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+
+  ctx.fillStyle = "#526b72";
+  ctx.font = "600 11px Montserrat, Arial";
+  ctx.fillText("Fara BESS", paddingLeft + 4, 48);
+  ctx.fillStyle = "#8aa3b8";
+  ctx.fillRect(paddingLeft - 16, 39, 12, 12);
+  ctx.fillStyle = "#526b72";
+  ctx.fillText("Cu BESS", paddingLeft + 100, 48);
+  ctx.fillStyle = "#16805f";
+  ctx.fillRect(paddingLeft + 80, 39, 12, 12);
+
+  rows.forEach((row, index) => {
+    const x = paddingLeft + index * groupW + groupW * 0.3;
+    const hWithout = (row.priceWithoutBessLeiMwh / max) * plotH;
+    const hWith = (row.priceWithBessLeiMwh / max) * plotH;
+    const yBase = height - paddingBottom;
+    ctx.fillStyle = "#8aa3b8";
+    ctx.fillRect(x, yBase - hWithout, barW, hWithout);
+    ctx.fillStyle = row.name === activeName ? "#4f9b27" : "#16805f";
+    ctx.fillRect(x + barW + 5, yBase - hWith, barW, hWith);
+    ctx.fillStyle = "#0a1d32";
+    ctx.font = row.name === activeName ? "700 11px Montserrat, Arial" : "600 11px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(row.name, x + barW, height - 24);
+    ctx.fillText(numberFormat.format(row.priceWithBessLeiMwh), x + barW, Math.max(54, yBase - hWith - 7));
+  });
+  ctx.textAlign = "left";
+}
+
+function drawMonthlyChart(monthly) {
   const canvas = $("resultChart");
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
@@ -1646,22 +1773,35 @@ function drawChart(monthly) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
+  ctx.fillStyle = "#0a1d32";
+  ctx.font = "700 18px Montserrat, Arial";
+  ctx.fillText("Preturi medii lunare - scenariul selectat", 28, 28);
   if (!monthly.length) return;
   const values = monthly.flatMap((row) => [row.price_without_bess_lei_mwh, row.price_with_bess_lei_mwh]);
   const max = Math.max(...values, 1);
-  const padding = 36;
+  const padding = 44;
   const plotW = width - padding * 2;
-  const plotH = height - padding * 2;
+  const plotH = height - padding * 2 - 24;
   const groupW = plotW / monthly.length;
   const barW = Math.max(8, groupW * 0.28);
 
   ctx.strokeStyle = "#d8e0e7";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(padding, padding);
+  ctx.moveTo(padding, padding + 24);
   ctx.lineTo(padding, height - padding);
   ctx.lineTo(width - padding, height - padding);
   ctx.stroke();
+
+  ctx.fillStyle = "#526b72";
+  ctx.font = "600 11px Montserrat, Arial";
+  ctx.fillText("Fara BESS", padding + 4, 50);
+  ctx.fillStyle = "#8aa3b8";
+  ctx.fillRect(padding - 16, 41, 12, 12);
+  ctx.fillStyle = "#526b72";
+  ctx.fillText("Cu BESS", padding + 100, 50);
+  ctx.fillStyle = "#16805f";
+  ctx.fillRect(padding + 80, 41, 12, 12);
 
   monthly.forEach((row, index) => {
     const x = padding + index * groupW + groupW * 0.25;
@@ -1671,7 +1811,13 @@ function drawChart(monthly) {
     ctx.fillRect(x, height - padding - h1, barW, h1);
     ctx.fillStyle = "#16805f";
     ctx.fillRect(x + barW + 4, height - padding - h2, barW, h2);
+    ctx.fillStyle = "#0a1d32";
+    ctx.font = "600 10px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(row.month || MONTH_SHORT[index] || "", x + barW, height - 18);
+    ctx.fillText(numberFormat.format(row.price_with_bess_lei_mwh), x + barW + 4, Math.max(60, height - padding - h2 - 6));
   });
+  ctx.textAlign = "left";
 }
 
 $("runBtn").addEventListener("click", runSimulation);
@@ -1680,6 +1826,11 @@ $("exportFinancialBtn").addEventListener("click", exportFinancialSummary);
 $("exportReportBtn").addEventListener("click", exportCompleteReport);
 $("activeScenario").addEventListener("change", (event) => renderScenario(event.target.value, { persist: true }));
 $("monthlyScenario").addEventListener("change", (event) => renderScenario(event.target.value, { persist: true }));
+$("scenarioTabs").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-scenario]");
+  if (!button) return;
+  renderScenario(button.dataset.scenario, { persist: true });
+});
 $("curveTable").addEventListener("input", (event) => {
   if (!(event.target instanceof HTMLInputElement)) return;
   const monthIndex = Number(event.target.dataset.month ?? state.curveMonthIndex);

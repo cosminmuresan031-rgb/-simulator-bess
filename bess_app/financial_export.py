@@ -9,8 +9,18 @@ from typing import Any, Dict, Iterable, Tuple
 from xml.etree import ElementTree as ET
 
 
-NS = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+NS = {
+    "main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "c": "http://schemas.openxmlformats.org/drawingml/2006/chart",
+    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "c16r2": "http://schemas.microsoft.com/office/drawing/2015/06/chart",
+}
 ET.register_namespace("", NS["main"])
+ET.register_namespace("c", NS["c"])
+ET.register_namespace("a", NS["a"])
+ET.register_namespace("r", NS["r"])
+ET.register_namespace("c16r2", NS["c16r2"])
 
 
 MONTHS = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -52,6 +62,14 @@ def cell_sort_key(cell: str) -> Tuple[int, int]:
 
 def q(tag: str) -> str:
     return f"{{{NS['main']}}}{tag}"
+
+
+def cq(tag: str) -> str:
+    return f"{{{NS['c']}}}{tag}"
+
+
+def aq(tag: str) -> str:
+    return f"{{{NS['a']}}}{tag}"
 
 
 def find_or_create_row(sheet: ET.Element, index: int) -> ET.Element:
@@ -130,6 +148,26 @@ def set_cell(sheet: ET.Element, ref: str, value: Any) -> None:
 def set_cells(sheet: ET.Element, values: Dict[str, Any]) -> None:
     for ref, value in sorted(values.items(), key=lambda item: cell_sort_key(item[0])):
         set_cell(sheet, ref, value)
+
+
+def update_chart_title(chart_xml: bytes, title: str) -> bytes:
+    root = ET.fromstring(chart_xml)
+    title_node = root.find(".//c:chart/c:title", NS)
+    if title_node is None:
+        return chart_xml
+    tx = title_node.find("c:tx", NS)
+    if tx is None:
+        tx = ET.SubElement(title_node, cq("tx"))
+    for child in list(tx):
+        tx.remove(child)
+    rich = ET.SubElement(tx, cq("rich"))
+    ET.SubElement(rich, aq("bodyPr"))
+    ET.SubElement(rich, aq("lstStyle"))
+    paragraph = ET.SubElement(rich, aq("p"))
+    run = ET.SubElement(paragraph, aq("r"))
+    ET.SubElement(run, aq("rPr"), {"lang": "ro-RO"})
+    ET.SubElement(run, aq("t")).text = title
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
 def observation(reduction: float, diff_vs_contract: float) -> str:
@@ -233,6 +271,10 @@ def generate_financial_summary_xlsx(summary: Dict[str, Any], template_path: Path
         raise FileNotFoundError(f"Template sinteza lipsa: {template_path}")
 
     cell_values = build_cell_values(summary)
+    assumptions = summary.get("assumptions") or {}
+    client = assumptions.get("client") or "Client"
+    scenario = summary.get("scenarioName") or "-"
+    chart_title = f"{client} - {scenario} | contract vs fara BESS vs cu BESS [lei/MWh]"
     source = template_path.read_bytes()
     output = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(source), "r") as zin, zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zout:
@@ -242,6 +284,7 @@ def generate_financial_summary_xlsx(summary: Dict[str, Any], template_path: Path
                 root = ET.fromstring(data)
                 set_cells(root, cell_values)
                 data = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+            elif info.filename == "xl/charts/chart1.xml":
+                data = update_chart_title(data, chart_title)
             zout.writestr(deepcopy(info), data)
     return output.getvalue()
-

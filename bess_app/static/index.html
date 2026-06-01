@@ -198,6 +198,7 @@
               <h2>Rezultate anuale</h2>
               <select id="activeScenario"></select>
             </div>
+            <div class="scenario-tabs" id="scenarioTabs"></div>
             <div class="annual-grid">
               <div><span>Fara BESS</span><strong id="annualNoBess">0.00</strong></div>
               <div><span>Cu BESS</span><strong id="annualWithBess">0.00</strong></div>
@@ -222,7 +223,28 @@
                 <tbody id="scenarioCostRows"></tbody>
               </table>
             </div>
-            <canvas id="resultChart" width="900" height="260"></canvas>
+            <canvas id="scenarioComparisonChart" class="chart-canvas" width="900" height="300"></canvas>
+            <div class="scenario-behavior-wrap">
+              <div class="behavior-head">
+                <h3>Comportament incarcare / descarcare</h3>
+                <span id="scenarioBehaviorCount" class="status-chip ok">0 ore</span>
+              </div>
+              <table class="scenario-behavior-table">
+                <thead>
+                  <tr>
+                    <th>Ora</th>
+                    <th>Actiune</th>
+                    <th>Pret lei/MWh</th>
+                    <th>Incarcare MWh</th>
+                    <th>Descarcare MWh</th>
+                    <th>SOC start</th>
+                    <th>SOC final</th>
+                    <th>Cost cu BESS</th>
+                  </tr>
+                </thead>
+                <tbody id="scenarioBehaviorRows"></tbody>
+              </table>
+            </div>
           </section>
 
           <section class="panel table-panel">
@@ -243,6 +265,7 @@
               </thead>
               <tbody id="monthlyRows"></tbody>
             </table>
+            <canvas id="resultChart" class="chart-canvas" width="900" height="260"></canvas>
           </section>
 
           <section class="panel financial-panel">
