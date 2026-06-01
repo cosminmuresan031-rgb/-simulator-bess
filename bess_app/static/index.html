@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simulator BESS</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <section id="authScreen" class="auth-screen">
+      <form id="authForm" class="auth-card">
+        <div>
+          <h1>SIMULATOR BESS</h1>
+          <p id="authSubtitle">Logare utilizator</p>
+        </div>
+        <label>
+          Email
+          <input id="authEmail" type="email" autocomplete="email" required />
+        </label>
+        <label>
+          Parola
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required />
+        </label>
+        <button id="authSubmit" class="primary" type="submit">Logare</button>
+        <button id="authToggle" class="link-button" type="button">Creeaza cont</button>
+        <p id="authMessage" class="auth-message"></p>
+      </form>
+    </section>
+
+    <main id="appShell" class="app-shell is-hidden">
+      <section class="topbar">
+        <div>
+          <h1>SIMULATOR BESS</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="user-menu">
+            <span id="userEmail">-</span>
+            <strong id="userPlan">Demo</strong>
+          </div>
+          <button id="logoutBtn" class="secondary" type="button">Logout</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <aside class="panel inputs-panel">
+          <div class="project-menu">
+            <div class="project-head">
+              <h2>Proiecte</h2>
+              <button id="newProjectBtn" class="secondary" type="button">Nou</button>
+            </div>
+            <label class="project-name">
+              Nume proiect
+              <input id="projectName" type="text" value="Proiect nou" />
+            </label>
+            <div class="project-tabs" id="projectTabs"></div>
+            <div class="history-head">
+              <span>Istoric simulari</span>
+              <strong id="historyCount">0</strong>
+            </div>
+            <div class="history-list" id="simulationHistory"></div>
+          </div>
+
+          <h2>Date intrare</h2>
+          <label class="file-control is-hidden">
+            Consum CSV
+            <input id="consumptionFile" type="file" accept=".csv,text/csv" />
+          </label>
+          <label class="file-control is-hidden">
+            PV CSV
+            <input id="pvFile" type="file" accept=".csv,text/csv" />
+          </label>
+          <label id="priceFileControl" class="file-control is-hidden">
+            Preturi CSV
+            <input id="priceFile" type="file" accept=".csv,text/csv" />
+          </label>
+          <div class="price-controls">
+            <label>
+              An preturi PZU
+              <select id="priceYear">
+                <option value="2025">2025 - preturi realizate</option>
+                <option value="2026">2026 - import CSV</option>
+              </select>
+            </label>
+            <span id="priceSource" class="status-chip ok">2025 implicit</span>
+          </div>
+
+          <div class="grid two">
+            <label>ATR MW <input id="atrMw" type="number" step="0.001" value="0" /></label>
+            <label>Randament RT <input id="rtEff" type="number" step="0.001" value="0.9" /></label>
+            <label>SOC initial MWh <input id="initialSoc" type="number" step="0.001" value="0" /></label>
+            <label>SOC minim MWh <input id="minSoc" type="number" step="0.001" value="0" /></label>
+            <label class="is-hidden">AC custom MW <input id="customAc" type="number" step="0.001" value="0" /></label>
+            <label class="is-hidden">Stocare custom MWh <input id="customStorage" type="number" step="0.001" value="0" /></label>
+          </div>
+
+          <h2>Scenarii</h2>
+          <div class="scenario-list" id="scenarioList">
+            <label><input type="checkbox" value="2h" checked /> 2h</label>
+            <label><input type="checkbox" value="3h" checked /> 3h</label>
+            <label><input type="checkbox" value="4h" checked /> 4h</label>
+            <label><input type="checkbox" value="6h" checked /> 6h</label>
+            <label class="is-hidden"><input type="checkbox" value="SuperSmart" /> SuperSmart</label>
+            <label class="is-hidden"><input type="checkbox" value="Personalizat" /> Personalizat</label>
+            <label><input type="checkbox" value="PV_only" checked /> PV_only</label>
+          </div>
+        </aside>
+
+        <section class="results">
+          <section class="panel curve-entry-panel">
+            <div class="section-head curve-head">
+              <div>
+                <h2>Introducere lunara curbe</h2>
+                <strong id="curveMonthTitle">Ianuarie 2025</strong>
+              </div>
+              <div class="curve-tools">
+                <div class="segmented curve-view-tabs" id="curveView">
+                  <button type="button" class="active" data-view="monthly">Introducere lunara</button>
+                  <button type="button" data-view="consolidated">Curbe consolidate</button>
+                </div>
+                <div class="segmented" id="curveKind">
+                  <button type="button" class="active" data-kind="consumption">Consum client</button>
+                  <button type="button" data-kind="pv">Productie PV</button>
+                </div>
+                <select id="curveMonth"></select>
+              </div>
+            </div>
+            <div class="curve-table-wrap">
+              <table class="curve-table" id="curveTable"></table>
+            </div>
+          </section>
+
+          <section class="panel checks-panel">
+            <div class="section-head">
+              <h2>Verificari curbe si consolidare</h2>
+              <span id="overallCheck" class="status-chip warn">In asteptare</span>
+            </div>
+            <div class="check-summary" id="checkSummary"></div>
+            <div class="check-table-wrap">
+              <table class="check-table">
+                <thead>
+                  <tr>
+                    <th>Curba</th>
+                    <th>Luna</th>
+                    <th>Asteptate</th>
+                    <th>Completate</th>
+                    <th>Lipsa</th>
+                    <th>Zile complete</th>
+                    <th>Total MWh</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="monthlyCheckRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="run-action">
+            <button id="runBtn" class="primary" type="button">Ruleaza simulare</button>
+          </section>
+
+          <section class="metrics">
+            <div class="metric">
+              <span>Ore</span>
+              <strong id="metricHours">0</strong>
+            </div>
+            <div class="metric">
+              <span>Consum MWh</span>
+              <strong id="metricConsumption">0.000</strong>
+            </div>
+            <div class="metric">
+              <span>AC max MW</span>
+              <strong id="metricAc">0.000</strong>
+            </div>
+            <div class="metric">
+              <span>Varf consum MW</span>
+              <strong id="metricPeak">0.000</strong>
+            </div>
+            <div class="metric">
+              <span>Rezerva ATR MW</span>
+              <strong id="metricHeadroom">0.000</strong>
+            </div>
+            <div class="metric">
+              <span>Consum zi MWh</span>
+              <strong id="metricDay">0.000</strong>
+            </div>
+            <div class="metric">
+              <span>Consum noapte MWh</span>
+              <strong id="metricNight">0.000</strong>
+            </div>
+            <div class="metric">
+              <span>Scenariu minim</span>
+              <strong id="metricBest">-</strong>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <h2>Rezultate anuale</h2>
+              <select id="activeScenario"></select>
+            </div>
+            <div class="annual-grid">
+              <div><span>Fara BESS</span><strong id="annualNoBess">0.00</strong></div>
+              <div><span>Cu BESS</span><strong id="annualWithBess">0.00</strong></div>
+              <div><span>Reducere</span><strong id="annualReduction">0.00</strong></div>
+              <div class="is-hidden"><span>Incarcari</span><strong id="annualCharges">0</strong></div>
+              <div class="is-hidden"><span>Descarcari</span><strong id="annualDischarges">0</strong></div>
+            </div>
+            <div class="scenario-cost-wrap">
+              <table class="scenario-cost-table">
+                <thead>
+                  <tr>
+                    <th>Scenariu</th>
+                    <th>MW AC</th>
+                    <th>MWh</th>
+                    <th>Cost fara BESS</th>
+                    <th>Cost cu BESS</th>
+                    <th>Pret fara BESS</th>
+                    <th>Pret cu BESS</th>
+                    <th>Reducere</th>
+                  </tr>
+                </thead>
+                <tbody id="scenarioCostRows"></tbody>
+              </table>
+            </div>
+            <canvas id="resultChart" width="900" height="260"></canvas>
+          </section>
+
+          <section class="panel table-panel">
+            <div class="section-head">
+              <h2>Preturi medii lunare</h2>
+              <select id="monthlyScenario"></select>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Luna</th>
+                  <th>Fara BESS</th>
+                  <th>Cu BESS</th>
+                  <th>Reducere</th>
+                  <th class="is-hidden">Incarcari</th>
+                  <th class="is-hidden">Descarcari</th>
+                </tr>
+              </thead>
+              <tbody id="monthlyRows"></tbody>
+            </table>
+          </section>
+
+          <section class="panel financial-panel">
+            <div class="section-head">
+              <div>
+                <h2>Sinteza financiara</h2>
+                <p id="financialStatus">Selecteaza scenariul si ruleaza sinteza.</p>
+              </div>
+              <div class="financial-actions">
+                <button id="runFinancialBtn" class="secondary" type="button">Ruleaza sinteza</button>
+                <button id="exportFinancialBtn" class="secondary" type="button">Descarca Excel</button>
+                <button id="exportReportBtn" class="secondary" type="button">Descarca raport complet</button>
+              </div>
+            </div>
+            <div class="financial-assumptions">
+              <label>Client <input id="financialClient" type="text" value="" placeholder="Nume client" /></label>
+              <label>Pret contractual 2025 <input id="financialContractPrice" type="number" step="0.01" value="596.92" /></label>
+              <label>Curs EUR <input id="financialEurRate" type="number" step="0.0001" value="5.1" /></label>
+              <label>Investitie [euro] <input id="financialInvestmentEur" type="number" step="1" value="0" /></label>
+            </div>
+            <div class="financial-synthesis">
+              <h3 id="financialTitle">Sinteza financiara - fara rulare</h3>
+              <div class="financial-layout">
+                <table class="synthesis-table compact">
+                  <thead>
+                    <tr>
+                      <th>Indicator financiar</th>
+                      <th>Rezultat</th>
+                      <th>Interpretare</th>
+                    </tr>
+                  </thead>
+                  <tbody id="financialIndicatorRows"></tbody>
+                </table>
+                <div class="financial-notes" id="financialNarrative"></div>
+              </div>
+              <table class="synthesis-table">
+                <thead>
+                  <tr>
+                    <th>Luna</th>
+                    <th>Pret furnizare 2025</th>
+                    <th>Fara BESS contract PZU</th>
+                    <th>Cu BESS + contract PZU</th>
+                    <th>Reducere cu BESS vs fara BESS</th>
+                    <th>Diferenta cu BESS vs pret furnizare 2025</th>
+                    <th>Observatie</th>
+                  </tr>
+                </thead>
+                <tbody id="financialMonthlyRows"></tbody>
+              </table>
+              <table class="synthesis-table annual">
+                <thead>
+                  <tr>
+                    <th>Sinteza anuala</th>
+                    <th>Contract</th>
+                    <th>Fara BESS</th>
+                    <th>Cu BESS</th>
+                    <th>Reducere</th>
+                    <th>Diferenta vs contract</th>
+                    <th>Comentariu</th>
+                  </tr>
+                </thead>
+                <tbody id="financialAnnualRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <section id="messages" class="messages"></section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
