@@ -294,8 +294,55 @@ def consumption_profile(rows: Sequence[HourInput]) -> Dict[str, Any]:
 
 def choose_candidates(day_indexes: Sequence[int], rows: Sequence[HourInput], charge_count: int, discharge_count: int) -> Tuple[set[int], set[int]]:
     charge = sorted(day_indexes, key=lambda i: (rows[i].price_lei_mwh, i))[:charge_count]
-    discharge = sorted(day_indexes, key=lambda i: (-rows[i].price_lei_mwh, -i))[:discharge_count]
+    charge_set = set(charge)
+    discharge = [
+        index
+        for index in sorted(day_indexes, key=lambda i: (-rows[i].price_lei_mwh, -i))
+        if index not in charge_set
+    ][:discharge_count]
     return set(charge), set(discharge)
+
+
+def cheaper_future_charge_capacity(
+    index: int,
+    day_indexes: Sequence[int],
+    rows: Sequence[HourInput],
+    candidate_charge: set[int],
+    candidate_discharge: set[int],
+    ac_mw: float,
+) -> float:
+    if ac_mw <= EPS:
+        return 0.0
+    next_discharge = next((item for item in day_indexes if item > index and item in candidate_discharge), None)
+    boundary = next_discharge if next_discharge is not None else day_indexes[-1] + 1
+    current_price = rows[index].price_lei_mwh
+    cheaper_slots = [
+        item
+        for item in day_indexes
+        if index < item < boundary and item in candidate_charge and rows[item].price_lei_mwh < current_price
+    ]
+    return len(cheaper_slots) * ac_mw
+
+
+def higher_future_discharge_capacity(
+    index: int,
+    day_indexes: Sequence[int],
+    rows: Sequence[HourInput],
+    candidate_charge: set[int],
+    candidate_discharge: set[int],
+    ac_mw: float,
+) -> float:
+    if ac_mw <= EPS:
+        return 0.0
+    next_charge = next((item for item in day_indexes if item > index and item in candidate_charge), None)
+    boundary = next_charge if next_charge is not None else day_indexes[-1] + 1
+    current_price = rows[index].price_lei_mwh
+    higher_slots = [
+        item
+        for item in day_indexes
+        if index < item < boundary and item in candidate_discharge and rows[item].price_lei_mwh > current_price
+    ]
+    return len(higher_slots) * ac_mw
 
 
 def simulate_scenario(rows: Sequence[HourInput], params: SimulationParams, config: ScenarioConfig, max_ac_mw: float) -> Dict[str, Any]:
@@ -309,6 +356,7 @@ def simulate_scenario(rows: Sequence[HourInput], params: SimulationParams, confi
     if config.pv_only:
         ac_mw = 0.0
         storage_mwh = 0.0
+    min_soc_mwh = min(storage_mwh, max(0.0, params.min_soc_mwh))
 
     charge_count, discharge_count = candidate_hours(
         storage_mwh, ac_mw, eta_ch, eta_dis, max(0.0, config.candidate_multiplier)
@@ -320,29 +368,30 @@ def simulate_scenario(rows: Sequence[HourInput], params: SimulationParams, confi
 
     candidate_charge: set[int] = set()
     candidate_discharge: set[int] = set()
+    cheaper_charge_capacity: Dict[int, float] = {}
+    higher_discharge_capacity: Dict[int, float] = {}
     for indexes in indexes_by_day.values():
         charge, discharge = choose_candidates(indexes, rows, charge_count, discharge_count)
         candidate_charge.update(charge)
         candidate_discharge.update(discharge)
+        for index in charge:
+            cheaper_charge_capacity[index] = cheaper_future_charge_capacity(index, indexes, rows, charge, discharge, ac_mw)
+        for index in discharge:
+            higher_discharge_capacity[index] = higher_future_discharge_capacity(index, indexes, rows, charge, discharge, ac_mw)
 
     hourly: List[Dict[str, Any]] = []
     soc = params.initial_soc_mwh
-    previous_day = None
 
     for index, row in enumerate(rows):
         consumption = max(0.0, row.consumption_mwh)
         pv = max(0.0, row.pv_mwh)
-        day = date_key(row.timestamp, index)
-        if day != previous_day:
-            soc = params.initial_soc_mwh
-            previous_day = day
 
         net_load = max(0.0, consumption - pv)
         pv_surplus = max(0.0, pv - consumption)
         if params.export_allowed:
             pv_surplus = 0.0
 
-        soc_start = min(storage_mwh, max(params.min_soc_mwh, soc))
+        soc_start = min(storage_mwh, max(min_soc_mwh, soc))
         pv_charge = 0.0
         grid_charge = 0.0
         discharge = 0.0
@@ -351,11 +400,15 @@ def simulate_scenario(rows: Sequence[HourInput], params: SimulationParams, confi
             pv_charge = min(pv_surplus, ac_mw, max(0.0, (storage_mwh - soc_start) / eta_ch))
             after_pv_soc = soc_start + pv_charge * eta_ch
             if index in candidate_charge and pv_charge < ac_mw:
-                grid_charge = min(ac_mw - pv_charge, max(0.0, (storage_mwh - after_pv_soc) / eta_ch))
+                available_storage_input = max(0.0, (storage_mwh - after_pv_soc) / eta_ch)
+                reserved_for_cheaper_hours = cheaper_charge_capacity.get(index, 0.0)
+                grid_charge = min(ac_mw - pv_charge, max(0.0, available_storage_input - reserved_for_cheaper_hours))
             total_charge = pv_charge + grid_charge
             if index in candidate_discharge and total_charge <= EPS:
-                discharge = min(ac_mw, net_load, max(0.0, soc_start * eta_dis))
-            soc = max(params.min_soc_mwh, min(storage_mwh, soc_start + total_charge * eta_ch - discharge / eta_dis))
+                available_discharge = max(0.0, (soc_start - min_soc_mwh) * eta_dis)
+                reserved_for_higher_hours = higher_discharge_capacity.get(index, 0.0)
+                discharge = min(ac_mw, net_load, max(0.0, available_discharge - reserved_for_higher_hours))
+            soc = max(min_soc_mwh, min(storage_mwh, soc_start + total_charge * eta_ch - discharge / eta_dis))
         else:
             total_charge = 0.0
             soc = 0.0

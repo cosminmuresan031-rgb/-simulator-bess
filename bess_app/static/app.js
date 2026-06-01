@@ -1,6 +1,7 @@
 const state = {
   result: null,
   activeScenario: null,
+  scenarioBehaviorView: "actions",
   curveKind: "consumption",
   curveView: "monthly",
   curveMonthIndex: 0,
@@ -1049,6 +1050,7 @@ function resetResultsView() {
   $("annualCharges").textContent = "0";
   $("annualDischarges").textContent = "0";
   $("scenarioCostRows").innerHTML = "";
+  renderScenarioBehaviorHeader("actions");
   $("scenarioBehaviorRows").innerHTML = "";
   $("scenarioBehaviorCount").textContent = "0 ore";
   $("monthlyRows").innerHTML = "";
@@ -1564,6 +1566,87 @@ function bessAction(row) {
   return "Standby";
 }
 
+function scenarioDayKey(row, index) {
+  const text = String(row.timestamp || "").trim();
+  const iso = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  const ro = text.match(/^(\d{2})[-.](\d{2})[-.](\d{4})/);
+  if (ro) return `${ro[3]}-${ro[2]}-${ro[1]}`;
+  if (text.includes("T")) return text.split("T", 1)[0];
+  if (text.includes(" ")) return text.split(" ", 1)[0];
+  return `day-${Math.floor(index / 24) + 1}`;
+}
+
+function scenarioPriceRanks(hourly = []) {
+  const ranks = hourly.map(() => ({ chargeRank: 0, dischargeRank: 0 }));
+  const groups = new Map();
+  hourly.forEach((row, index) => {
+    const key = scenarioDayKey(row, index);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ index, price: Number(row.price_lei_mwh) || 0 });
+  });
+  groups.forEach((items) => {
+    [...items]
+      .sort((a, b) => a.price - b.price || a.index - b.index)
+      .forEach((item, rank) => {
+        ranks[item.index].chargeRank = rank + 1;
+      });
+    [...items]
+      .sort((a, b) => b.price - a.price || b.index - a.index)
+      .forEach((item, rank) => {
+        ranks[item.index].dischargeRank = rank + 1;
+      });
+  });
+  return ranks;
+}
+
+function renderScenarioBehaviorTabs() {
+  const tabs = $("scenarioBehaviorTabs");
+  if (!tabs) return;
+  tabs.querySelectorAll("button[data-behavior-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.behaviorView === state.scenarioBehaviorView);
+  });
+}
+
+function renderScenarioBehaviorHeader(view) {
+  const head = $("scenarioBehaviorHead");
+  if (!head) return;
+  const columns =
+    view === "all"
+      ? [
+          "Ora",
+          "Pret lei/MWh",
+          "Rank inc",
+          "Rank desc",
+          "Candidat inc",
+          "Candidat desc",
+          "Actiune",
+          "Incarcare MWh",
+          "Descarcare MWh",
+          "SOC start",
+          "SOC final",
+          "Cost cu BESS",
+        ]
+      : [
+          "Ora",
+          "Actiune",
+          "Pret lei/MWh",
+          "Incarcare MWh",
+          "Descarcare MWh",
+          "SOC start",
+          "SOC final",
+          "Cost cu BESS",
+        ];
+  const tr = document.createElement("tr");
+  columns.forEach((column) => {
+    const th = document.createElement("th");
+    th.textContent = column;
+    tr.appendChild(th);
+  });
+  head.innerHTML = "";
+  head.appendChild(tr);
+}
+
 function invalidateFinancialSummary() {
   if (state.isApplyingProject) return;
   const project = activeProject();
@@ -1667,34 +1750,73 @@ function renderScenarioCosts(activeName) {
 function renderScenarioBehavior(scenario) {
   const tbody = $("scenarioBehaviorRows");
   tbody.innerHTML = "";
-  const actionRows = (scenario.hourly || []).filter((row) => bessAction(row) !== "Standby");
-  $("scenarioBehaviorCount").textContent = `${actionRows.length} ore`;
-  if (!actionRows.length) {
+  renderScenarioBehaviorTabs();
+  renderScenarioBehaviorHeader(state.scenarioBehaviorView);
+
+  const hourly = scenario.hourly || [];
+  const actionRows = hourly.filter((row) => bessAction(row) !== "Standby");
+  const rows = state.scenarioBehaviorView === "all" ? hourly : actionRows;
+  $("scenarioBehaviorCount").textContent =
+    state.scenarioBehaviorView === "all" ? `${rows.length} ore` : `${actionRows.length} decizii`;
+
+  if (!rows.length) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 8;
-    td.textContent = "Nu exista ore de incarcare sau descarcare pentru scenariul selectat.";
+    td.colSpan = state.scenarioBehaviorView === "all" ? 12 : 8;
+    td.textContent =
+      state.scenarioBehaviorView === "all"
+        ? "Nu exista ore pentru scenariul selectat."
+        : "Nu exista ore de incarcare sau descarcare pentru scenariul selectat.";
     tr.appendChild(td);
     tbody.appendChild(tr);
     return;
   }
 
+  const ranks = state.scenarioBehaviorView === "all" ? scenarioPriceRanks(hourly) : [];
   const fragment = document.createDocumentFragment();
-  actionRows.forEach((row) => {
+  rows.forEach((row, visibleIndex) => {
     const action = bessAction(row);
     const tr = document.createElement("tr");
-    tr.className = action === "Incarcare" ? "charge" : "discharge";
-    [
-      row.timestamp || "",
-      action,
-      numberFormat.format(Number(row.price_lei_mwh) || 0),
-      numberFormat.format(Number(row.charge_mwh) || 0),
-      numberFormat.format(Number(row.discharge_mwh) || 0),
-      numberFormat.format(Number(row.soc_start_mwh) || 0),
-      numberFormat.format(Number(row.soc_final_mwh) || 0),
-      formatLei(Number(row.cost_with_bess_lei) || 0),
-    ].forEach((value) => {
+    const hourlyIndex = state.scenarioBehaviorView === "all" ? visibleIndex : hourly.indexOf(row);
+    const rank = ranks[hourlyIndex] || { chargeRank: 0, dischargeRank: 0 };
+    const classes = [];
+    if (action === "Incarcare") classes.push("charge");
+    if (action === "Descarcare") classes.push("discharge");
+    if (action === "Standby" && row.candidate_charge) classes.push("candidate-charge");
+    if (action === "Standby" && row.candidate_discharge) classes.push("candidate-discharge");
+    tr.className = classes.join(" ");
+
+    const values =
+      state.scenarioBehaviorView === "all"
+        ? [
+            row.timestamp || "",
+            numberFormat.format(Number(row.price_lei_mwh) || 0),
+            rank.chargeRank || "-",
+            rank.dischargeRank || "-",
+            row.candidate_charge ? "Da" : "-",
+            row.candidate_discharge ? "Da" : "-",
+            action,
+            numberFormat.format(Number(row.charge_mwh) || 0),
+            numberFormat.format(Number(row.discharge_mwh) || 0),
+            numberFormat.format(Number(row.soc_start_mwh) || 0),
+            numberFormat.format(Number(row.soc_final_mwh) || 0),
+            formatLei(Number(row.cost_with_bess_lei) || 0),
+          ]
+        : [
+            row.timestamp || "",
+            action,
+            numberFormat.format(Number(row.price_lei_mwh) || 0),
+            numberFormat.format(Number(row.charge_mwh) || 0),
+            numberFormat.format(Number(row.discharge_mwh) || 0),
+            numberFormat.format(Number(row.soc_start_mwh) || 0),
+            numberFormat.format(Number(row.soc_final_mwh) || 0),
+            formatLei(Number(row.cost_with_bess_lei) || 0),
+          ];
+
+    const actionColumnIndex = state.scenarioBehaviorView === "all" ? 6 : 1;
+    values.forEach((value, columnIndex) => {
       const td = document.createElement("td");
+      if (columnIndex === actionColumnIndex) td.className = "action-cell";
       td.textContent = value;
       tr.appendChild(td);
     });
@@ -1830,6 +1952,17 @@ $("scenarioTabs").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-scenario]");
   if (!button) return;
   renderScenario(button.dataset.scenario, { persist: true });
+});
+$("scenarioBehaviorTabs").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-behavior-view]");
+  if (!button) return;
+  state.scenarioBehaviorView = button.dataset.behaviorView;
+  if (state.activeScenario) {
+    renderScenario(state.activeScenario, { persist: false });
+  } else {
+    renderScenarioBehaviorTabs();
+    renderScenarioBehaviorHeader(state.scenarioBehaviorView);
+  }
 });
 $("curveTable").addEventListener("input", (event) => {
   if (!(event.target instanceof HTMLInputElement)) return;

@@ -226,11 +226,15 @@
             <canvas id="scenarioComparisonChart" class="chart-canvas" width="900" height="300"></canvas>
             <div class="scenario-behavior-wrap">
               <div class="behavior-head">
-                <h3>Comportament incarcare / descarcare</h3>
+                <h3>Comportament scenariu</h3>
                 <span id="scenarioBehaviorCount" class="status-chip ok">0 ore</span>
               </div>
+              <div class="behavior-view-tabs" id="scenarioBehaviorTabs">
+                <button type="button" class="active" data-behavior-view="actions">Decizii BESS</button>
+                <button type="button" data-behavior-view="all">Toate preturile</button>
+              </div>
               <table class="scenario-behavior-table">
-                <thead>
+                <thead id="scenarioBehaviorHead">
                   <tr>
                     <th>Ora</th>
                     <th>Actiune</th>

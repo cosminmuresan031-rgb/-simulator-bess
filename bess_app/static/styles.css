@@ -848,8 +848,32 @@ canvas,
   color: var(--text);
 }
 
+.behavior-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 2px;
+}
+
+.behavior-view-tabs button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  padding: 0 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.behavior-view-tabs button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
 .scenario-behavior-table {
-  min-width: 980px;
+  min-width: 1240px;
 }
 
 .scenario-behavior-table tr.charge td {
@@ -860,7 +884,22 @@ canvas,
   background: rgba(247, 222, 222, 0.92);
 }
 
-.scenario-behavior-table td:nth-child(2) {
+.scenario-behavior-table tr.candidate-charge td {
+  background: rgba(232, 244, 235, 0.42);
+}
+
+.scenario-behavior-table tr.candidate-discharge td {
+  background: rgba(247, 222, 222, 0.42);
+}
+
+.scenario-behavior-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f2f6f8;
+}
+
+.scenario-behavior-table .action-cell {
   font-weight: 800;
 }
 

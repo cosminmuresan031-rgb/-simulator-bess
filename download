@@ -1,0 +1,9 @@
+*
+
+!Dockerfile
+!bess_app/
+!bess_app/**
+
+bess_app/__pycache__/
+bess_app/**/*.pyc
+bess_app/tests/
