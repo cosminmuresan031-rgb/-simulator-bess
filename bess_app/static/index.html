@@ -29,9 +29,10 @@
 
     <main id="appShell" class="app-shell is-hidden">
       <section class="topbar">
-        <div>
-          <h1>SIMULATOR BESS</h1>
-        </div>
+        <nav class="main-menu" aria-label="Meniu principal">
+          <button id="navConsumptionProfile" class="main-menu-item active" type="button" data-app-view="profile">Profil de consum</button>
+          <button id="navSimulator" class="main-menu-item" type="button" data-app-view="simulator">SIMULATOR BESS</button>
+        </nav>
         <div class="topbar-actions">
           <div class="user-menu">
             <span id="userEmail">-</span>
@@ -41,6 +42,7 @@
         </div>
       </section>
 
+      <section id="simulatorView" class="app-view is-hidden">
       <section class="workspace">
         <aside class="panel inputs-panel">
           <div class="project-menu">
@@ -106,54 +108,6 @@
         </aside>
 
         <section class="results">
-          <section class="panel curve-entry-panel">
-            <div class="section-head curve-head">
-              <div>
-                <h2>Introducere lunara curbe</h2>
-                <strong id="curveMonthTitle">Ianuarie 2025</strong>
-              </div>
-              <div class="curve-tools">
-                <div class="segmented curve-view-tabs" id="curveView">
-                  <button type="button" class="active" data-view="monthly">Introducere lunara</button>
-                  <button type="button" data-view="consolidated">Curbe consolidate</button>
-                </div>
-                <div class="segmented" id="curveKind">
-                  <button type="button" class="active" data-kind="consumption">Consum client</button>
-                  <button type="button" data-kind="pv">Productie PV</button>
-                </div>
-                <select id="curveMonth"></select>
-              </div>
-            </div>
-            <div class="curve-table-wrap">
-              <table class="curve-table" id="curveTable"></table>
-            </div>
-          </section>
-
-          <section class="panel checks-panel">
-            <div class="section-head">
-              <h2>Verificari curbe si consolidare</h2>
-              <span id="overallCheck" class="status-chip warn">In asteptare</span>
-            </div>
-            <div class="check-summary" id="checkSummary"></div>
-            <div class="check-table-wrap">
-              <table class="check-table">
-                <thead>
-                  <tr>
-                    <th>Curba</th>
-                    <th>Luna</th>
-                    <th>Asteptate</th>
-                    <th>Completate</th>
-                    <th>Lipsa</th>
-                    <th>Zile complete</th>
-                    <th>Total MWh</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody id="monthlyCheckRows"></tbody>
-              </table>
-            </div>
-          </section>
-
           <section class="run-action">
             <button id="runBtn" class="primary" type="button">Ruleaza simulare</button>
           </section>
@@ -223,15 +177,37 @@
                 <tbody id="scenarioCostRows"></tbody>
               </table>
             </div>
-            <canvas id="scenarioComparisonChart" class="chart-canvas" width="900" height="300"></canvas>
+            <canvas id="scenarioComparisonChart" class="chart-canvas scenario-comparison-chart" width="900" height="300"></canvas>
             <div class="scenario-behavior-wrap">
-              <div class="behavior-head">
-                <h3>Comportament scenariu</h3>
-                <span id="scenarioBehaviorCount" class="status-chip ok">0 ore</span>
-              </div>
-              <div class="behavior-view-tabs" id="scenarioBehaviorTabs">
-                <button type="button" class="active" data-behavior-view="actions">Decizii BESS</button>
-                <button type="button" data-behavior-view="all">Toate preturile</button>
+              <div class="behavior-sticky">
+                <div class="behavior-head">
+                  <h3>Comportament scenariu</h3>
+                  <span id="scenarioBehaviorCount" class="status-chip ok">0 ore</span>
+                </div>
+                <div class="behavior-controls">
+                  <div class="behavior-view-tabs" id="scenarioBehaviorTabs">
+                    <button type="button" class="active" data-behavior-view="actions">Decizii BESS</button>
+                    <button type="button" data-behavior-view="all">Toate preturile</button>
+                  </div>
+                  <label class="behavior-month-filter">
+                    Luna
+                    <select id="scenarioBehaviorMonth">
+                      <option value="all">Toate lunile</option>
+                      <option value="01">Ianuarie</option>
+                      <option value="02">Februarie</option>
+                      <option value="03">Martie</option>
+                      <option value="04">Aprilie</option>
+                      <option value="05">Mai</option>
+                      <option value="06">Iunie</option>
+                      <option value="07">Iulie</option>
+                      <option value="08">August</option>
+                      <option value="09">Septembrie</option>
+                      <option value="10">Octombrie</option>
+                      <option value="11">Noiembrie</option>
+                      <option value="12">Decembrie</option>
+                    </select>
+                  </label>
+                </div>
               </div>
               <table class="scenario-behavior-table">
                 <thead id="scenarioBehaviorHead">
@@ -269,7 +245,7 @@
               </thead>
               <tbody id="monthlyRows"></tbody>
             </table>
-            <canvas id="resultChart" class="chart-canvas" width="900" height="260"></canvas>
+            <canvas id="resultChart" class="chart-canvas monthly-result-chart" width="900" height="260"></canvas>
           </section>
 
           <section class="panel financial-panel">
@@ -338,6 +314,131 @@
       </section>
 
       <section id="messages" class="messages"></section>
+      </section>
+
+      <section id="consumptionProfileView" class="app-view profile-view">
+        <section class="panel curve-entry-panel">
+          <div class="section-head curve-head">
+            <div>
+              <h2>Introducere lunara curbe</h2>
+              <strong id="curveMonthTitle">Ianuarie 2025</strong>
+            </div>
+            <div class="curve-tools">
+              <div class="segmented curve-view-tabs" id="curveView">
+                <button type="button" class="active" data-view="monthly">Introducere lunara</button>
+                <button type="button" data-view="consolidated">Curbe consolidate</button>
+              </div>
+              <div class="segmented" id="curveKind">
+                <button type="button" class="active" data-kind="consumption">Consum client</button>
+                <button type="button" data-kind="pv">Productie PV</button>
+              </div>
+              <select id="curveMonth"></select>
+            </div>
+          </div>
+          <div class="curve-table-wrap">
+            <table class="curve-table" id="curveTable"></table>
+          </div>
+        </section>
+
+        <section class="panel checks-panel">
+          <div class="section-head">
+            <h2>Verificari curbe si consolidare</h2>
+            <span id="overallCheck" class="status-chip warn">In asteptare</span>
+          </div>
+          <div class="check-summary" id="checkSummary"></div>
+          <div class="check-table-wrap">
+            <table class="check-table">
+              <thead>
+                <tr>
+                  <th>Curba</th>
+                  <th>Luna</th>
+                  <th>Asteptate</th>
+                  <th>Completate</th>
+                  <th>Lipsa</th>
+                  <th>Zile complete</th>
+                  <th>Total MWh</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="monthlyCheckRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel profile-panel">
+          <div class="section-head">
+            <div>
+              <h2>Profil de consum</h2>
+              <p id="profileStatus">Consum introdus: 0 ore</p>
+            </div>
+            <span id="profileYear" class="status-chip ok">2025</span>
+          </div>
+          <canvas id="sourcingProfileChart" class="chart-canvas sourcing-profile-chart" width="1200" height="360"></canvas>
+          <div class="profile-summary">
+            <div>
+              <span>Consum anual</span>
+              <strong id="profileAnnualConsumption">0.00</strong>
+            </div>
+            <div>
+              <span>Consum zi</span>
+              <strong id="profileDayConsumption">0.00</strong>
+            </div>
+            <div>
+              <span>Consum noapte</span>
+              <strong id="profileNightConsumption">0.00</strong>
+            </div>
+            <div>
+              <span>PV anual</span>
+              <strong id="profileAnnualPv">0.00</strong>
+            </div>
+            <div>
+              <span>Varf consum MW</span>
+              <strong id="profilePeakConsumption">0.00</strong>
+            </div>
+            <div>
+              <span>Medie orara MW</span>
+              <strong id="profileAverageConsumption">0.00</strong>
+            </div>
+          </div>
+          <canvas id="profileChart" class="chart-canvas profile-chart" width="900" height="280"></canvas>
+          <div class="profile-table-wrap">
+            <table class="profile-table">
+              <thead>
+                <tr>
+                  <th>Luna</th>
+                  <th>Consum MWh</th>
+                  <th>Consum zi MWh</th>
+                  <th>Consum noapte MWh</th>
+                  <th>PV MWh</th>
+                  <th>Varf MW</th>
+                </tr>
+              </thead>
+              <tbody id="profileMonthlyRows"></tbody>
+            </table>
+          </div>
+          <div class="cef-profile-block">
+            <h3>PROFILARE CEF</h3>
+            <div class="profile-table-wrap">
+              <table class="profile-table cef-profile-table">
+                <thead>
+                  <tr>
+                    <th>Profil</th>
+                    <th>Perioada</th>
+                    <th>Interval orar</th>
+                    <th>Ore asteptate</th>
+                    <th>Ore completate</th>
+                    <th>Total MWh</th>
+                    <th>Medie MW</th>
+                    <th>Varf MW</th>
+                    <th>Pondere</th>
+                  </tr>
+                </thead>
+                <tbody id="cefProfileRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </section>
     </main>
     <script src="/app.js"></script>
   </body>

@@ -2,6 +2,8 @@ const state = {
   result: null,
   activeScenario: null,
   scenarioBehaviorView: "actions",
+  scenarioBehaviorMonth: "all",
+  activeAppView: "profile",
   curveKind: "consumption",
   curveView: "monthly",
   curveMonthIndex: 0,
@@ -35,6 +37,41 @@ const MONTHS = [
 
 const MONTH_SHORT = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+const CEF_PROFILE_WINDOWS = [
+  {
+    label: "Profil consum 09:00 - 21:00",
+    period: "Martie - Septembrie",
+    interval: "09:00 - 21:00",
+    months: [2, 3, 4, 5, 6, 7, 8],
+    startHour: 9,
+    endHour: 21,
+  },
+  {
+    label: "Profil consum 22:00 - 08:00",
+    period: "Martie - Septembrie",
+    interval: "22:00 - 08:00",
+    months: [2, 3, 4, 5, 6, 7, 8],
+    startHour: 22,
+    endHour: 8,
+  },
+  {
+    label: "Profil consum 09:00 - 16:00",
+    period: "Octombrie - Februarie",
+    interval: "09:00 - 16:00",
+    months: [9, 10, 11, 0, 1],
+    startHour: 9,
+    endHour: 16,
+  },
+  {
+    label: "Profil consum 22:00 - 08:00",
+    period: "Octombrie - Februarie",
+    interval: "22:00 - 08:00",
+    months: [9, 10, 11, 0, 1],
+    startHour: 22,
+    endHour: 8,
+  },
+];
+
 const numberFormat = new Intl.NumberFormat("ro-RO", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -57,6 +94,16 @@ let projectSaveTimer = null;
 
 function $(id) {
   return document.getElementById(id);
+}
+
+function setAppView(view) {
+  state.activeAppView = view === "profile" ? "profile" : "simulator";
+  $("simulatorView")?.classList.toggle("is-hidden", state.activeAppView !== "simulator");
+  $("consumptionProfileView")?.classList.toggle("is-hidden", state.activeAppView !== "profile");
+  document.querySelectorAll(".main-menu-item").forEach((button) => {
+    button.classList.toggle("active", button.dataset.appView === state.activeAppView);
+  });
+  if (state.activeAppView === "profile") renderConsumptionProfile();
 }
 
 function clone(value) {
@@ -184,6 +231,11 @@ function timestampFor(monthIndex, day, hour) {
 
 function intervalLabel(hour) {
   return `${String(hour).padStart(2, "0")}-${String(hour + 1).padStart(2, "0")}`;
+}
+
+function hourInRange(hour, startHour, endHour) {
+  if (startHour <= endHour) return hour >= startHour && hour <= endHour;
+  return hour >= startHour || hour <= endHour;
 }
 
 function curveKey(kind, monthIndex) {
@@ -420,9 +472,10 @@ function renderCurveTable() {
   syncCurveViewControls();
   if (state.curveView === "consolidated") {
     renderConsolidatedCurveTable();
-    return;
+  } else {
+    renderMonthlyCurveTable();
   }
-  renderMonthlyCurveTable();
+  renderConsumptionProfile();
 }
 
 function monthlyCheck(kind, monthIndex) {
@@ -1124,6 +1177,174 @@ function dayNightSplit(hourly = []) {
   };
 }
 
+function buildConsumptionProfile() {
+  const daily = [];
+  const monthly = MONTHS.map((month, monthIndex) => {
+    const consumption = monthValues("consumption", monthIndex);
+    const pv = monthValues("pv", monthIndex);
+    const days = monthDays(monthIndex);
+    const row = {
+      month: month.label,
+      monthKey: month.key,
+      consumptionMwh: 0,
+      dayMwh: 0,
+      nightMwh: 0,
+      sourcingDayMwh: 0,
+      sourcingNightMwh: 0,
+      sourcingOtherMwh: 0,
+      pvMwh: 0,
+      peakMw: 0,
+      enteredHours: 0,
+      expectedHours: days * 24,
+    };
+
+    for (let dayIndex = 0; dayIndex < days; dayIndex += 1) {
+      const dailyRow = {
+        monthIndex,
+        dayIndex,
+        dayMwh: 0,
+        nightMwh: 0,
+        pvMwh: 0,
+        totalMwh: 0,
+      };
+      for (let hour = 0; hour < 24; hour += 1) {
+        const consumptionValue = consumption[dayIndex]?.[hour] ?? "";
+        const pvValue = pv[dayIndex]?.[hour] ?? "";
+        const consumptionMwh = parseNumber(consumptionValue);
+        const pvMwh = parseNumber(pvValue);
+        if (hasValue(consumptionValue)) row.enteredHours += 1;
+        row.consumptionMwh += consumptionMwh;
+        row.pvMwh += pvMwh;
+        row.peakMw = Math.max(row.peakMw, consumptionMwh);
+        if (hour >= 7 && hour < 22) row.dayMwh += consumptionMwh;
+        else row.nightMwh += consumptionMwh;
+        const isWarmSeason = monthIndex >= 2 && monthIndex <= 8;
+        const isSourcingDay = isWarmSeason ? hourInRange(hour, 9, 21) : hourInRange(hour, 9, 16);
+        const isSourcingNight = hourInRange(hour, 22, 8);
+        dailyRow.totalMwh += consumptionMwh;
+        dailyRow.pvMwh += pvMwh;
+        if (isSourcingDay) row.sourcingDayMwh += consumptionMwh;
+        else if (isSourcingNight) row.sourcingNightMwh += consumptionMwh;
+        else row.sourcingOtherMwh += consumptionMwh;
+        if (isSourcingDay) dailyRow.dayMwh += consumptionMwh;
+        else if (isSourcingNight) dailyRow.nightMwh += consumptionMwh;
+      }
+      daily.push(dailyRow);
+    }
+    return row;
+  });
+
+  const totals = monthly.reduce(
+    (acc, row) => {
+      acc.consumptionMwh += row.consumptionMwh;
+      acc.dayMwh += row.dayMwh;
+      acc.nightMwh += row.nightMwh;
+      acc.pvMwh += row.pvMwh;
+      acc.peakMw = Math.max(acc.peakMw, row.peakMw);
+      acc.enteredHours += row.enteredHours;
+      acc.expectedHours += row.expectedHours;
+      return acc;
+    },
+    { consumptionMwh: 0, dayMwh: 0, nightMwh: 0, pvMwh: 0, peakMw: 0, enteredHours: 0, expectedHours: 0 },
+  );
+  totals.averageMw = totals.enteredHours > 0 ? totals.consumptionMwh / totals.enteredHours : 0;
+  return { monthly, daily, totals };
+}
+
+function buildCefProfileRows(totalConsumptionMwh) {
+  return CEF_PROFILE_WINDOWS.map((profile) => {
+    const row = {
+      ...profile,
+      expectedHours: 0,
+      enteredHours: 0,
+      totalMwh: 0,
+      averageMw: 0,
+      peakMw: 0,
+      sharePct: 0,
+    };
+
+    profile.months.forEach((monthIndex) => {
+      const consumption = monthValues("consumption", monthIndex);
+      const days = monthDays(monthIndex);
+      for (let dayIndex = 0; dayIndex < days; dayIndex += 1) {
+        for (let hour = 0; hour < 24; hour += 1) {
+          if (!hourInRange(hour, profile.startHour, profile.endHour)) continue;
+          const value = consumption[dayIndex]?.[hour] ?? "";
+          const consumptionMwh = parseNumber(value);
+          row.expectedHours += 1;
+          if (hasValue(value)) row.enteredHours += 1;
+          row.totalMwh += consumptionMwh;
+          row.peakMw = Math.max(row.peakMw, consumptionMwh);
+        }
+      }
+    });
+    row.averageMw = row.enteredHours > 0 ? row.totalMwh / row.enteredHours : 0;
+    row.sharePct = totalConsumptionMwh > 0 ? (row.totalMwh / totalConsumptionMwh) * 100 : 0;
+    return row;
+  });
+}
+
+function renderConsumptionProfile() {
+  if (!$("profileMonthlyRows")) return;
+  const profile = buildConsumptionProfile();
+  const { totals } = profile;
+  $("profileStatus").textContent = `Consum introdus: ${totals.enteredHours}/${totals.expectedHours} ore`;
+  $("profileYear").textContent = String(selectedYear());
+  $("profileAnnualConsumption").textContent = numberFormat.format(totals.consumptionMwh);
+  $("profileDayConsumption").textContent = numberFormat.format(totals.dayMwh);
+  $("profileNightConsumption").textContent = numberFormat.format(totals.nightMwh);
+  $("profileAnnualPv").textContent = numberFormat.format(totals.pvMwh);
+  $("profilePeakConsumption").textContent = numberFormat.format(totals.peakMw);
+  $("profileAverageConsumption").textContent = numberFormat.format(totals.averageMw);
+
+  const tbody = $("profileMonthlyRows");
+  tbody.innerHTML = "";
+  profile.monthly.forEach((row) => {
+    const tr = document.createElement("tr");
+    [
+      row.month,
+      numberFormat.format(row.consumptionMwh),
+      numberFormat.format(row.dayMwh),
+      numberFormat.format(row.nightMwh),
+      numberFormat.format(row.pvMwh),
+      numberFormat.format(row.peakMw),
+    ].forEach((value) => {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  renderCefProfileTable(buildCefProfileRows(totals.consumptionMwh));
+  drawSourcingProfileChart(profile.daily);
+  drawConsumptionProfileChart(profile.monthly);
+}
+
+function renderCefProfileTable(rows) {
+  const tbody = $("cefProfileRows");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    [
+      row.label,
+      row.period,
+      row.interval,
+      String(row.expectedHours),
+      String(row.enteredHours),
+      numberFormat.format(row.totalMwh),
+      numberFormat.format(row.averageMw),
+      numberFormat.format(row.peakMw),
+      `${numberFormat.format(row.sharePct)}%`,
+    ].forEach((value) => {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
 function scenarioCostSummary(scenario) {
   const annual = scenario?.summary?.annual || {};
   return {
@@ -1625,6 +1846,28 @@ function scenarioDayKey(row, index) {
   return `day-${Math.floor(index / 24) + 1}`;
 }
 
+function scenarioMonthKey(row, index) {
+  const text = String(row.timestamp || "").trim();
+  const iso = text.match(/^\d{4}-(\d{2})-\d{2}/);
+  if (iso) return iso[1];
+  const ro = text.match(/^\d{2}[-.](\d{2})[-.]\d{4}/);
+  if (ro) return ro[1];
+  const slash = text.match(/^\d{1,2}\/(\d{1,2})\/\d{4}/);
+  if (slash) return String(Number(slash[1])).padStart(2, "0");
+  const hourOfYear = Math.max(0, index);
+  let elapsed = 0;
+  for (const month of MONTHS) {
+    elapsed += month.days * 24;
+    if (hourOfYear < elapsed) return month.key;
+  }
+  return "12";
+}
+
+function scenarioBehaviorMonthLabel() {
+  if (state.scenarioBehaviorMonth === "all") return "Toate lunile";
+  return MONTHS.find((month) => month.key === state.scenarioBehaviorMonth)?.label || "Luna selectata";
+}
+
 function scenarioPriceRanks(hourly = []) {
   const ranks = hourly.map(() => ({ chargeRank: 0, dischargeRank: 0 }));
   const groups = new Map();
@@ -1664,10 +1907,6 @@ function renderScenarioBehaviorHeader(view) {
       ? [
           "Ora",
           "Pret lei/MWh",
-          "Rank inc",
-          "Rank desc",
-          "Candidat inc",
-          "Candidat desc",
           "Actiune",
           "Incarcare MWh",
           "Descarcare MWh",
@@ -1800,21 +2039,32 @@ function renderScenarioBehavior(scenario) {
   tbody.innerHTML = "";
   renderScenarioBehaviorTabs();
   renderScenarioBehaviorHeader(state.scenarioBehaviorView);
+  const monthSelect = $("scenarioBehaviorMonth");
+  if (monthSelect && monthSelect.value !== state.scenarioBehaviorMonth) {
+    monthSelect.value = state.scenarioBehaviorMonth;
+  }
 
   const hourly = scenario.hourly || [];
-  const actionRows = hourly.filter((row) => bessAction(row) !== "Standby");
-  const rows = state.scenarioBehaviorView === "all" ? hourly : actionRows;
+  const monthRows =
+    state.scenarioBehaviorMonth === "all"
+      ? hourly
+      : hourly.filter((row, index) => scenarioMonthKey(row, index) === state.scenarioBehaviorMonth);
+  const actionRows = monthRows.filter((row) => bessAction(row) !== "Standby");
+  const rows = state.scenarioBehaviorView === "all" ? monthRows : actionRows;
+  const monthLabel = scenarioBehaviorMonthLabel();
   $("scenarioBehaviorCount").textContent =
-    state.scenarioBehaviorView === "all" ? `${rows.length} ore` : `${actionRows.length} decizii`;
+    state.scenarioBehaviorView === "all"
+      ? `${monthLabel}: ${rows.length} ore`
+      : `${monthLabel}: ${actionRows.length} decizii`;
 
   if (!rows.length) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = state.scenarioBehaviorView === "all" ? 12 : 8;
+    td.colSpan = 8;
     td.textContent =
       state.scenarioBehaviorView === "all"
-        ? "Nu exista ore pentru scenariul selectat."
-        : "Nu exista ore de incarcare sau descarcare pentru scenariul selectat.";
+        ? "Nu exista ore pentru luna si scenariul selectat."
+        : "Nu exista ore de incarcare sau descarcare pentru luna si scenariul selectat.";
     tr.appendChild(td);
     tbody.appendChild(tr);
     return;
@@ -1825,7 +2075,7 @@ function renderScenarioBehavior(scenario) {
   rows.forEach((row, visibleIndex) => {
     const action = bessAction(row);
     const tr = document.createElement("tr");
-    const hourlyIndex = state.scenarioBehaviorView === "all" ? visibleIndex : hourly.indexOf(row);
+    const hourlyIndex = hourly.indexOf(row);
     const rank = ranks[hourlyIndex] || { chargeRank: 0, dischargeRank: 0 };
     const classes = [];
     if (action === "Incarcare") classes.push("charge");
@@ -1839,10 +2089,6 @@ function renderScenarioBehavior(scenario) {
         ? [
             row.timestamp || "",
             numberFormat.format(Number(row.price_lei_mwh) || 0),
-            rank.chargeRank || "-",
-            rank.dischargeRank || "-",
-            row.candidate_charge ? "Da" : "-",
-            row.candidate_discharge ? "Da" : "-",
             action,
             numberFormat.format(Number(row.charge_mwh) || 0),
             numberFormat.format(Number(row.discharge_mwh) || 0),
@@ -1861,7 +2107,7 @@ function renderScenarioBehavior(scenario) {
             formatLei(Number(row.cost_with_bess_lei) || 0),
           ];
 
-    const actionColumnIndex = state.scenarioBehaviorView === "all" ? 6 : 1;
+    const actionColumnIndex = state.scenarioBehaviorView === "all" ? 2 : 1;
     values.forEach((value, columnIndex) => {
       const td = document.createElement("td");
       if (columnIndex === actionColumnIndex) td.className = "action-cell";
@@ -1873,11 +2119,206 @@ function renderScenarioBehavior(scenario) {
   tbody.appendChild(fragment);
 }
 
+function prepareChartCanvas(canvas, fallbackWidth, fallbackHeight) {
+  const rect = canvas.getBoundingClientRect();
+  const cssWidth = Math.max(fallbackWidth, Math.round(rect.width || fallbackWidth));
+  const cssHeight = Math.max(fallbackHeight, Math.round(rect.height || fallbackHeight));
+  const ratio = Math.min(window.devicePixelRatio || 1, 3);
+  const pixelWidth = Math.round(cssWidth * ratio);
+  const pixelHeight = Math.round(cssHeight * ratio);
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+  canvas.style.width = `${cssWidth}px`;
+  canvas.style.height = `${cssHeight}px`;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  return { ctx, width: cssWidth, height: cssHeight };
+}
+
+function drawSourcingProfileChart(daily) {
+  const canvas = $("sourcingProfileChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 1200, 360);
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#0a1d32";
+  ctx.font = "700 18px Montserrat, Arial";
+  ctx.fillText(`Profil zilnic consum / PV - ${selectedYear()}`, 28, 30);
+  if (!daily.length) return;
+
+  const max = Math.max(
+    ...daily.flatMap((row) => [row.dayMwh + row.nightMwh, row.totalMwh, row.pvMwh]),
+    1,
+  );
+  const paddingLeft = 54;
+  const paddingRight = 30;
+  const paddingTop = 68;
+  const paddingBottom = 58;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+  const step = plotW / daily.length;
+  const barW = Math.max(1, Math.min(4, step * 0.78));
+
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.lineWidth = 1;
+  for (let index = 0; index <= 4; index += 1) {
+    const y = paddingTop + (plotH / 4) * index;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "#cbd6de";
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+
+  let dayOffset = 0;
+  MONTHS.forEach((month, monthIndex) => {
+    const monthLength = monthDays(monthIndex);
+    const xStart = paddingLeft + dayOffset * step;
+    const xMiddle = xStart + (monthLength * step) / 2;
+    ctx.strokeStyle = "rgba(10, 29, 50, 0.12)";
+    ctx.beginPath();
+    ctx.moveTo(xStart, paddingTop);
+    ctx.lineTo(xStart, height - paddingBottom);
+    ctx.stroke();
+    ctx.fillStyle = "#526b72";
+    ctx.font = "700 10px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(MONTH_SHORT[monthIndex].toUpperCase(), xMiddle, height - 25);
+    dayOffset += monthLength;
+  });
+  ctx.fillStyle = "#526b72";
+  ctx.font = "700 10px Montserrat, Arial";
+  ctx.fillText(String(selectedYear()), paddingLeft + plotW / 2, height - 10);
+
+  const legend = [
+    { label: "Consum zi", color: "#78bd35", x: paddingLeft - 16 },
+    { label: "Consum noapte", color: "#2b6cb0", x: paddingLeft + 104 },
+    { label: "Productie PV", color: "#f0c23a", x: paddingLeft + 252 },
+    { label: "Total zilnic", color: "#c65050", x: paddingLeft + 392, line: true },
+  ];
+  legend.forEach((item) => {
+    if (item.line) {
+      ctx.strokeStyle = item.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(item.x, 49);
+      ctx.lineTo(item.x + 18, 49);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = item.color;
+      ctx.fillRect(item.x, 43, 12, 12);
+    }
+    ctx.fillStyle = "#526b72";
+    ctx.font = "600 11px Montserrat, Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(item.label, item.x + (item.line ? 26 : 18), 53);
+  });
+
+  daily.forEach((row, index) => {
+    const x = paddingLeft + index * step + (step - barW) / 2;
+    const yBase = height - paddingBottom;
+    const nightHeight = (row.nightMwh / max) * plotH;
+    const dayHeight = (row.dayMwh / max) * plotH;
+    const pvHeight = (row.pvMwh / max) * plotH;
+
+    ctx.fillStyle = "#2b6cb0";
+    ctx.fillRect(x, yBase - nightHeight, barW, nightHeight);
+    ctx.fillStyle = "#78bd35";
+    ctx.fillRect(x, yBase - nightHeight - dayHeight, barW, dayHeight);
+    if (row.pvMwh > 0) {
+      const pvBarW = Math.max(1, Math.min(2.4, barW * 0.46));
+      const pvX = x + (barW - pvBarW) / 2;
+      ctx.fillStyle = "#f0c23a";
+      ctx.fillRect(pvX, yBase - pvHeight, pvBarW, pvHeight);
+    }
+  });
+
+  ctx.strokeStyle = "#c65050";
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  daily.forEach((row, index) => {
+    const x = paddingLeft + index * step + step / 2;
+    const y = height - paddingBottom - (row.totalMwh / max) * plotH;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.textAlign = "left";
+}
+
+function drawConsumptionProfileChart(monthly) {
+  const canvas = $("profileChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 900, 280);
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#0a1d32";
+  ctx.font = "700 18px Montserrat, Arial";
+  ctx.fillText("Profil lunar consum / PV", 28, 30);
+  if (!monthly.length) return;
+
+  const max = Math.max(...monthly.flatMap((row) => [row.consumptionMwh, row.pvMwh]), 1);
+  const paddingLeft = 52;
+  const paddingRight = 28;
+  const paddingTop = 64;
+  const paddingBottom = 48;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+  const groupW = plotW / monthly.length;
+  const barW = Math.max(8, Math.min(28, groupW * 0.28));
+
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+
+  ctx.fillStyle = "#526b72";
+  ctx.font = "600 11px Montserrat, Arial";
+  ctx.fillText("Consum", paddingLeft + 4, 50);
+  ctx.fillStyle = "#8aa3b8";
+  ctx.fillRect(paddingLeft - 16, 41, 12, 12);
+  ctx.fillStyle = "#526b72";
+  ctx.fillText("PV", paddingLeft + 96, 50);
+  ctx.fillStyle = "#16805f";
+  ctx.fillRect(paddingLeft + 76, 41, 12, 12);
+
+  monthly.forEach((row, index) => {
+    const x = paddingLeft + index * groupW + groupW * 0.24;
+    const consumptionHeight = (row.consumptionMwh / max) * plotH;
+    const pvHeight = (row.pvMwh / max) * plotH;
+    const yBase = height - paddingBottom;
+    ctx.fillStyle = "#8aa3b8";
+    ctx.fillRect(x, yBase - consumptionHeight, barW, consumptionHeight);
+    ctx.fillStyle = "#16805f";
+    ctx.fillRect(x + barW + 4, yBase - pvHeight, barW, pvHeight);
+    ctx.fillStyle = "#0a1d32";
+    ctx.font = "600 10px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(MONTH_SHORT[index] || row.monthKey, x + barW, height - 18);
+  });
+  ctx.textAlign = "left";
+}
+
 function drawScenarioComparisonChart(scenarios, activeName) {
   const canvas = $("scenarioComparisonChart");
-  const ctx = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 900, 300);
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
@@ -1936,9 +2377,7 @@ function drawScenarioComparisonChart(scenarios, activeName) {
 
 function drawMonthlyChart(monthly) {
   const canvas = $("resultChart");
-  const ctx = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 900, 260);
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
@@ -1990,6 +2429,11 @@ function drawMonthlyChart(monthly) {
   ctx.textAlign = "left";
 }
 
+document.querySelector(".main-menu")?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-app-view]");
+  if (!button) return;
+  setAppView(button.dataset.appView);
+});
 $("runBtn").addEventListener("click", runSimulation);
 $("runFinancialBtn").addEventListener("click", runFinancialSummary);
 $("exportFinancialBtn").addEventListener("click", exportFinancialSummary);
@@ -2012,6 +2456,26 @@ $("scenarioBehaviorTabs").addEventListener("click", (event) => {
     renderScenarioBehaviorHeader(state.scenarioBehaviorView);
   }
 });
+$("scenarioBehaviorMonth").addEventListener("change", (event) => {
+  state.scenarioBehaviorMonth = event.target.value || "all";
+  if (state.activeScenario) {
+    renderScenario(state.activeScenario, { persist: false });
+  }
+});
+let chartResizeTimer = null;
+window.addEventListener("resize", () => {
+  window.clearTimeout(chartResizeTimer);
+  chartResizeTimer = window.setTimeout(() => {
+    if (state.result) {
+      const scenario = scenarioByName(state.activeScenario);
+      if (scenario) {
+        drawScenarioComparisonChart(state.result.scenarios, scenario.name);
+        drawMonthlyChart(scenario.summary.monthly);
+      }
+    }
+    if (state.activeAppView === "profile") renderConsumptionProfile();
+  }, 120);
+});
 $("curveTable").addEventListener("input", (event) => {
   if (!(event.target instanceof HTMLInputElement)) return;
   const monthIndex = Number(event.target.dataset.month ?? state.curveMonthIndex);
@@ -2024,6 +2488,7 @@ $("curveTable").addEventListener("input", (event) => {
     hour,
     event.target.value,
   );
+  renderConsumptionProfile();
   scheduleSaveProjectDraft();
   refreshChecksFromCurrentInputs();
 });
@@ -2106,6 +2571,7 @@ initCurveControls();
 loadAuthSession();
 renderAuthMode();
 renderAuthState();
+setAppView(state.activeAppView);
 if (state.user) {
   loadProjects();
   syncPriceImportVisibility();
