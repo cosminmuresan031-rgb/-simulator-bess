@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Sequence
 
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
+from openpyxl.formatting.rule import DataBarRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -258,6 +259,10 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
     battery = summary.get("battery") or {}
     interpretation = summary.get("interpretation") or {}
     monthly = summary.get("monthly") or []
+    supply_component = as_float(annual.get("supply_component_lei_mwh"))
+    gross_diff = as_float(annual.get("difference_vs_contract_lei_mwh") or annual.get("contract_vs_pzu_with_bess_lei_mwh"))
+    final_result_value = annual.get("final_result_lei_mwh")
+    final_result = as_float(final_result_value) if final_result_value not in (None, "") else gross_diff - supply_component
 
     ws.merge_cells("A1:G1")
     ws["A1"] = "SINTEZA FINANCIARA"
@@ -275,7 +280,8 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
         ["Consum total analizat [MWh]", as_float(annual.get("consumption_mwh")), "Volumul anual pe care se aplica optimizarea."],
         ["Pret mediu ponderat cu BESS", as_float(annual.get("weighted_price_with_bess_lei_mwh")), "Reperul de cost cu stocare."],
         ["Pret contractual furnizare 2025", as_float(annual.get("contract_price_lei_mwh")), "Nivelul de comparatie comerciala."],
-        ["Impact indicativ [lei/an]", as_float(annual.get("impact_lei_year")), "Consum total x diferenta medie fata de contract."],
+        ["Componenta furnizare PZU", supply_component, "Componenta editabila scazuta din rezultatul anual."],
+        ["Impact indicativ [lei/an]", as_float(annual.get("impact_lei_year")), "Consum total x rezultat net."],
         ["Termen recuperare [ani]", as_float(annual.get("payback_years")), "Calculat pe impact anual estimat."],
     ]
     ws.merge_cells("A8:G8")
@@ -291,9 +297,7 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
         [
             month_label(row, index),
             as_float(row.get("contract_price_lei_mwh")),
-            as_float(row.get("price_without_bess_lei_mwh")),
             as_float(row.get("price_with_bess_lei_mwh")),
-            as_float(row.get("reduction_lei_mwh")),
             as_float(row.get("difference_vs_contract_lei_mwh")),
             safe_text(row.get("observation") or ""),
         ]
@@ -304,15 +308,18 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
         start + 1,
         [
             "Luna",
-            "Pret furnizare 2025",
-            "Fara BESS contract PZU",
-            "Cu BESS + contract PZU",
-            "Reducere cu BESS vs fara BESS",
-            "Diferenta cu BESS vs pret furnizare 2025",
+            "Pret contract 2025",
+            "PZU cu BESS",
+            "Pret contract 2025 vs PZU cu BESS",
             "Observatie",
         ],
         monthly_rows,
     )
+    if monthly_rows:
+        ws.conditional_formatting.add(
+            f"D{start + 2}:D{end_month}",
+            DataBarRule(start_type="min", end_type="max", color="70AD47", showValue=True),
+        )
 
     if monthly_rows:
         client = safe_text(assumptions.get("client") or "Client")
@@ -322,10 +329,23 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
         chart.title = f"{client} - {summary.get('scenarioName') or '-'} | preturi lunare"
         chart.y_axis.title = "lei/MWh"
         chart.x_axis.title = "Luna"
-        data = Reference(ws, min_col=2, max_col=4, min_row=start + 1, max_row=end_month)
+        price_values = [
+            as_float(row[1]) for row in monthly_rows if len(row) > 1
+        ] + [
+            as_float(row[2]) for row in monthly_rows if len(row) > 2
+        ]
+        if price_values:
+            chart.y_axis.scaling.min = 0
+            chart.y_axis.scaling.max = max(price_values) * 1.15
+        data = Reference(ws, min_col=2, max_col=3, min_row=start + 1, max_row=end_month)
         cats = Reference(ws, min_col=1, min_row=start + 2, max_row=end_month)
         chart.add_data(data, titles_from_data=True)
         chart.set_categories(cats)
+        if len(chart.series) >= 2:
+            chart.series[0].graphicalProperties.solidFill = NAVY
+            chart.series[0].graphicalProperties.line.solidFill = NAVY
+            chart.series[1].graphicalProperties.solidFill = GREEN
+            chart.series[1].graphicalProperties.line.solidFill = GREEN_DARK
         chart.height = 7
         chart.width = 16
         ws.add_chart(chart, "I18")
@@ -338,21 +358,21 @@ def create_financial_sheet(wb: Workbook, summary: Dict[str, Any]) -> None:
         [
             "Medie lunara rezultate",
             as_float(annual.get("contract_price_lei_mwh")),
-            as_float(annual.get("arithmetic_avg_monthly_without_bess_lei_mwh")),
             as_float(annual.get("arithmetic_avg_monthly_with_bess_lei_mwh")),
-            as_float(annual.get("reduction_lei_mwh")),
-            as_float(annual.get("difference_vs_contract_lei_mwh")),
+            gross_diff,
+            supply_component,
+            final_result,
             "Medii simple ale celor 12 luni din simulare",
         ],
-        ["Impact indicativ [lei/an]", "", "", "", as_float(annual.get("impact_lei_year")), "", "Consum total x diferenta medie fata de contract"],
-        ["Impact indicativ [euro/an]", "", "", "", as_float(annual.get("impact_eur_year")), "", "Conversie la cursul introdus"],
-        ["Valoare investitie [euro]", "", "", "", as_float(annual.get("investment_eur")), "", "Ipoteza introdusa"],
-        ["Termen de recuperare investitie ani", "", "", "", as_float(annual.get("payback_years")), "", "Investitie / impact anual euro"],
+        ["Impact indicativ [lei/an]", "", "", "", "", as_float(annual.get("impact_lei_year")), "Consum total x rezultat net"],
+        ["Impact indicativ [euro/an]", "", "", "", "", as_float(annual.get("impact_eur_year")), "Conversie la cursul introdus"],
+        ["Valoare investitie [euro]", "", "", "", "", as_float(annual.get("investment_eur")), "Ipoteza introdusa"],
+        ["Termen de recuperare investitie ani", "", "", "", "", as_float(annual.get("payback_years")), "Investitie / impact anual euro"],
     ]
     write_rows(
         ws,
         annual_start + 1,
-        ["Sinteza anuala", "Contract", "Fara BESS", "Cu BESS", "Reducere", "Diferenta vs contract", "Comentariu"],
+        ["Sinteza anuala", "Pret contract 2025", "PZU cu BESS", "Contract vs PZU cu BESS", "Componenta furnizare", "Rezultate", "Comentariu"],
         annual_rows,
     )
 
@@ -483,7 +503,6 @@ def generate_complete_report_xlsx(payload: Dict[str, Any]) -> bytes:
     dashboard = payload.get("dashboard") or {}
     summary = payload.get("financialSummary") or {}
     scenario = payload.get("scenario") or {}
-    scenarios = payload.get("scenarios") or []
     project_name = str(payload.get("projectName") or "Proiect BESS")
 
     if not dashboard:
@@ -503,14 +522,6 @@ def generate_complete_report_xlsx(payload: Dict[str, Any]) -> bytes:
     create_financial_sheet(wb, summary)
     existing_titles = {ws.title for ws in wb.worksheets}
     create_scenario_sheet(wb, scenario, safe_sheet_title("Scenariu selectat", "Scenariu selectat", existing_titles))
-    selected_name = str(scenario.get("name") or "")
-    for item in scenarios:
-        if not isinstance(item, dict):
-            continue
-        if str(item.get("name") or "") == selected_name:
-            continue
-        title = safe_sheet_title(f"Scenariu {item.get('name') or ''}", "Scenariu", existing_titles)
-        create_scenario_sheet(wb, item, title)
 
     assert_no_formulas(wb)
     output = io.BytesIO()

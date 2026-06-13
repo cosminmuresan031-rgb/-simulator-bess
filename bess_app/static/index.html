@@ -287,6 +287,7 @@
             <div class="financial-assumptions">
               <label>Client <input id="financialClient" type="text" value="" placeholder="Nume client" /></label>
               <label>Pret contractual 2025 <input id="financialContractPrice" type="number" step="0.01" value="596.92" /></label>
+              <label>Componenta furnizare <input id="financialSupplyComponent" type="number" step="0.01" value="0" /></label>
               <label>Curs EUR <input id="financialEurRate" type="number" step="0.0001" value="5.1" /></label>
               <label>Investitie [euro] <input id="financialInvestmentEur" type="number" step="1" value="0" /></label>
             </div>
@@ -309,11 +310,9 @@
                 <thead>
                   <tr>
                     <th>Luna</th>
-                    <th>Pret furnizare 2025</th>
-                    <th>Fara BESS contract PZU</th>
-                    <th>Cu BESS + contract PZU</th>
-                    <th>Reducere cu BESS vs fara BESS</th>
-                    <th>Diferenta cu BESS vs pret furnizare 2025</th>
+                    <th>Pret contract 2025</th>
+                    <th>PZU cu BESS</th>
+                    <th>Pret contract 2025 vs PZU cu BESS</th>
                     <th>Observatie</th>
                   </tr>
                 </thead>
@@ -323,11 +322,11 @@
                 <thead>
                   <tr>
                     <th>Sinteza anuala</th>
-                    <th>Contract</th>
-                    <th>Fara BESS</th>
-                    <th>Cu BESS</th>
-                    <th>Reducere</th>
-                    <th>Diferenta vs contract</th>
+                    <th>Pret contract 2025</th>
+                    <th>PZU cu BESS</th>
+                    <th>Contract vs PZU cu BESS</th>
+                    <th>Componenta furnizare</th>
+                    <th>Rezultate</th>
                     <th>Comentariu</th>
                   </tr>
                 </thead>

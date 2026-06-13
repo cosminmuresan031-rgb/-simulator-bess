@@ -103,6 +103,7 @@ function defaultFinancialAssumptions() {
   return {
     client: "",
     contractPriceLeiMwh: 596.92,
+    supplyComponentLeiMwh: 0,
     eurRate: 5.1,
     investmentEur: 0,
   };
@@ -112,6 +113,7 @@ function financialAssumptions() {
   return {
     client: $("financialClient").value.trim(),
     contractPriceLeiMwh: parseNumber($("financialContractPrice").value),
+    supplyComponentLeiMwh: parseNumber($("financialSupplyComponent").value),
     eurRate: parseNumber($("financialEurRate").value) || 5.1,
     investmentEur: parseNumber($("financialInvestmentEur").value),
   };
@@ -121,6 +123,7 @@ function applyFinancialAssumptions(values = {}) {
   const merged = { ...defaultFinancialAssumptions(), ...values };
   $("financialClient").value = merged.client || "";
   $("financialContractPrice").value = merged.contractPriceLeiMwh || 0;
+  $("financialSupplyComponent").value = merged.supplyComponentLeiMwh || 0;
   $("financialEurRate").value = merged.eurRate || 5.1;
   $("financialInvestmentEur").value = merged.investmentEur || 0;
 }
@@ -1189,6 +1192,32 @@ function activeSimulation() {
   return project.simulations?.find((simulation) => simulation.id === project.activeSimulationId) || null;
 }
 
+function ensureSimulationContext() {
+  if (!state.result) return null;
+  const project = ensureActiveProject();
+  let simulation = activeSimulation();
+  if (simulation) return simulation;
+
+  const now = new Date().toISOString();
+  const dashboard = buildDashboardSnapshot(state.result, state.activeScenario);
+  simulation = {
+    id: makeId("simulation"),
+    runAt: now,
+    activeScenario: state.activeScenario,
+    dashboard,
+    financialSummarySource: dashboard,
+    result: clone(state.result),
+  };
+  project.simulations = [simulation, ...(project.simulations || [])].slice(0, MAX_SIMULATIONS_PER_PROJECT);
+  project.activeSimulationId = simulation.id;
+  project.dashboardSnapshot = dashboard;
+  project.financialSummarySource = dashboard;
+  project.updatedAt = now;
+  persistProjects();
+  renderProjectsMenu();
+  return simulation;
+}
+
 function persistDashboardSelection(snapshot) {
   if (state.isApplyingProject) return;
   const project = activeProject();
@@ -1223,14 +1252,16 @@ function buildFinancialSummary(source) {
   const costWithout = Number(annual.cost_without_bess_lei) || 0;
   const costWith = Number(annual.cost_with_bess_lei) || 0;
   const contractPrice = assumptions.contractPriceLeiMwh;
+  const supplyComponent = assumptions.supplyComponentLeiMwh || 0;
   const eurRate = assumptions.eurRate || 5.1;
   const investmentEur = assumptions.investmentEur;
   const avgWithout = Number(annual.arithmetic_avg_monthly_without_bess_lei_mwh) || 0;
   const avgWith = Number(annual.arithmetic_avg_monthly_with_bess_lei_mwh) || 0;
   const bessReduction = avgWithout - avgWith;
   const diffVsContract = contractPrice - avgWith;
+  const finalResult = diffVsContract - supplyComponent;
   const consumption = Number(annual.consumption_mwh) || Number(source.metrics?.totalConsumptionMwh) || 0;
-  const impactLei = diffVsContract * consumption;
+  const impactLei = finalResult * consumption;
   const impactEur = eurRate > 0 ? impactLei / eurRate : 0;
   return {
     generatedAt: new Date().toISOString(),
@@ -1248,12 +1279,16 @@ function buildFinancialSummary(source) {
       cost_with_bess_lei: costWith,
       saving_lei: costWithout - costWith,
       contract_price_lei_mwh: contractPrice,
+      supply_component_lei_mwh: supplyComponent,
       arithmetic_avg_monthly_without_bess_lei_mwh: avgWithout,
       arithmetic_avg_monthly_with_bess_lei_mwh: avgWith,
       weighted_price_without_bess_lei_mwh: Number(annual.weighted_price_without_bess_lei_mwh) || 0,
       weighted_price_with_bess_lei_mwh: Number(annual.weighted_price_with_bess_lei_mwh) || 0,
-      reduction_lei_mwh: bessReduction,
+      bess_reduction_vs_without_bess_lei_mwh: bessReduction,
+      contract_vs_pzu_with_bess_lei_mwh: diffVsContract,
+      reduction_lei_mwh: finalResult,
       difference_vs_contract_lei_mwh: diffVsContract,
+      final_result_lei_mwh: finalResult,
       impact_lei_year: impactLei,
       impact_eur_year: impactEur,
       investment_eur: investmentEur,
@@ -1269,9 +1304,10 @@ function buildFinancialSummary(source) {
         contract_price_lei_mwh: contractPrice,
         price_without_bess_lei_mwh: withoutBess,
         price_with_bess_lei_mwh: withBess,
-        reduction_lei_mwh: reduction,
+        bess_reduction_vs_without_bess_lei_mwh: reduction,
+        reduction_lei_mwh: monthlyDiff,
         difference_vs_contract_lei_mwh: monthlyDiff,
-        observation: monthlyObservation(reduction, monthlyDiff),
+        observation: monthlyObservation(monthlyDiff, monthlyDiff),
       };
     }),
   };
@@ -1310,6 +1346,7 @@ function renderFinancialSummary(summary) {
     ["Consum zi / noapte [%]", `${numberFormat.format(dayPct)}% / ${numberFormat.format(nightPct)}%`, "Structura consumului explica potentialul de arbitraj orar."],
     ["Pret mediu ponderat cu BESS", `${numberFormat.format(annual.weighted_price_with_bess_lei_mwh)} lei/MWh`, "Reperul de cost cu stocare."],
     ["Pret contractual furnizare 2025", `${numberFormat.format(annual.contract_price_lei_mwh)} lei/MWh`, "Nivelul de comparatie comerciala."],
+    ["Componenta furnizare PZU", `${numberFormat.format(annual.supply_component_lei_mwh)} lei/MWh`, "Componenta editabila scazuta din rezultatul anual."],
   ];
   $("financialIndicatorRows").innerHTML = "";
   indicators.forEach((row) => {
@@ -1324,9 +1361,9 @@ function renderFinancialSummary(summary) {
   });
 
   const notes = [
-    `Simularea indica o reducere medie lunara de ${numberFormat.format(annual.reduction_lei_mwh)} lei/MWh prin utilizarea bateriei fata de scenariul fara BESS.`,
-    `Scenariul cu BESS ${annual.difference_vs_contract_lei_mwh >= 0 ? "ramane sub" : "este peste"} pretul contractual de ${numberFormat.format(annual.contract_price_lei_mwh)} lei/MWh cu ${numberFormat.format(Math.abs(annual.difference_vs_contract_lei_mwh))} lei/MWh.`,
-    `Impactul anual indicativ, aplicand diferenta fata de contract pe consumul analizat, este de aproximativ ${formatLei(annual.impact_lei_year)}.`,
+    `Scenariul PZU cu BESS ${annual.difference_vs_contract_lei_mwh >= 0 ? "ramane sub" : "este peste"} pretul contractual de ${numberFormat.format(annual.contract_price_lei_mwh)} lei/MWh cu ${numberFormat.format(Math.abs(annual.difference_vs_contract_lei_mwh))} lei/MWh.`,
+    `Componenta de furnizare PZU este ${numberFormat.format(annual.supply_component_lei_mwh)} lei/MWh, iar rezultatul net este ${numberFormat.format(annual.final_result_lei_mwh)} lei/MWh.`,
+    `Impactul anual indicativ, aplicand rezultatul net pe consumul analizat, este de aproximativ ${formatLei(annual.impact_lei_year)}.`,
   ];
   $("financialNarrative").innerHTML = "";
   notes.forEach((text, index) => {
@@ -1337,19 +1374,26 @@ function renderFinancialSummary(summary) {
   });
 
   $("financialMonthlyRows").innerHTML = "";
+  const maxMonthlyDiff = Math.max(
+    ...summary.monthly.map((row) => Math.max(0, Number(row.difference_vs_contract_lei_mwh) || 0)),
+    1,
+  );
   summary.monthly.forEach((row) => {
     const tr = document.createElement("tr");
     [
       row.month,
       numberFormat.format(row.contract_price_lei_mwh),
-      numberFormat.format(row.price_without_bess_lei_mwh),
       numberFormat.format(row.price_with_bess_lei_mwh),
-      numberFormat.format(row.reduction_lei_mwh),
       numberFormat.format(row.difference_vs_contract_lei_mwh),
       row.observation,
-    ].forEach((value) => {
+    ].forEach((value, index) => {
       const td = document.createElement("td");
       td.textContent = value;
+      if (index === 3) {
+        td.className = "table-data-bar";
+        const diff = Math.max(0, Number(row.difference_vs_contract_lei_mwh) || 0);
+        td.style.setProperty("--bar-pct", `${Math.min(100, (diff / maxMonthlyDiff) * 100)}%`);
+      }
       tr.appendChild(td);
     });
     $("financialMonthlyRows").appendChild(tr);
@@ -1359,22 +1403,22 @@ function renderFinancialSummary(summary) {
     [
       "Medie lunara rezultate",
       numberFormat.format(annual.contract_price_lei_mwh),
-      numberFormat.format(annual.arithmetic_avg_monthly_without_bess_lei_mwh),
       numberFormat.format(annual.arithmetic_avg_monthly_with_bess_lei_mwh),
-      numberFormat.format(annual.reduction_lei_mwh),
       numberFormat.format(annual.difference_vs_contract_lei_mwh),
+      numberFormat.format(annual.supply_component_lei_mwh),
+      numberFormat.format(annual.final_result_lei_mwh),
       "Medii simple ale celor 12 luni din simulare",
     ],
-    ["Impact indicativ [lei/an]", "", "", "", formatLei(annual.impact_lei_year), "", "Consum total x diferenta medie fata de contract"],
-    ["Impact indicativ [euro/an]", "", "", "", formatEuro(annual.impact_eur_year), "", `Curs EUR ${numberFormat.format(assumptions.eurRate)}`],
-    ["Valoare investitie [euro]", "", "", "", formatEuro(annual.investment_eur), "", "Ipoteza editabila"],
+    ["Impact indicativ [lei/an]", "", "", "", "", formatLei(annual.impact_lei_year), "Consum total x rezultat net"],
+    ["Impact indicativ [euro/an]", "", "", "", "", formatEuro(annual.impact_eur_year), `Curs EUR ${numberFormat.format(assumptions.eurRate)}`],
+    ["Valoare investitie [euro]", "", "", "", "", formatEuro(annual.investment_eur), "Ipoteza editabila"],
     [
       "Termen de recuperare investitie ani",
       "",
       "",
       "",
-      annual.payback_years > 0 ? numberFormat.format(annual.payback_years) : "-",
       "",
+      annual.payback_years > 0 ? numberFormat.format(annual.payback_years) : "-",
       annual.payback_years > 0 ? "Investitie / impact anual euro" : "Necesita investitie si impact pozitiv",
     ],
   ];
@@ -1392,8 +1436,8 @@ function renderFinancialSummary(summary) {
 }
 
 function runFinancialSummary() {
-  const project = activeProject();
-  const simulation = activeSimulation();
+  const project = state.result ? ensureActiveProject() : activeProject();
+  const simulation = ensureSimulationContext();
   const source = financialSourceForActiveScenario();
   if (!project || !simulation || !source) {
     setMessages(["Ruleaza mai intai o simulare si selecteaza scenariul pentru sinteza financiara."], true);
@@ -1473,10 +1517,14 @@ async function exportFinancialSummary() {
 }
 
 async function exportCompleteReport() {
-  const project = activeProject();
-  const simulation = activeSimulation();
-  if (!state.result || !project || !simulation) {
+  if (!state.result) {
     setMessages(["Ruleaza mai intai simularea, apoi sinteza financiara."], true);
+    return;
+  }
+  const project = ensureActiveProject();
+  const simulation = ensureSimulationContext();
+  if (!project || !simulation) {
+    setMessages(["Nu am gasit simularea activa pentru raportul complet."], true);
     return;
   }
 
@@ -1504,7 +1552,7 @@ async function exportCompleteReport() {
         dashboard,
         financialSummary: summary,
         scenario: clone(scenario),
-        scenarios: clone(state.result.scenarios || []),
+        scenarios: scenarioCostsFromResult(state.result),
       }),
     });
     if (!response.ok) {
@@ -2044,7 +2092,7 @@ $("simulationHistory").addEventListener("click", (event) => {
 ["atrMw", "rtEff", "initialSoc", "minSoc", "customAc", "customStorage"].forEach((id) => {
   $(id).addEventListener("input", scheduleSaveProjectDraft);
 });
-["financialClient", "financialContractPrice", "financialEurRate", "financialInvestmentEur"].forEach((id) => {
+["financialClient", "financialContractPrice", "financialSupplyComponent", "financialEurRate", "financialInvestmentEur"].forEach((id) => {
   $(id).addEventListener("input", invalidateFinancialSummary);
 });
 $("scenarioList").addEventListener("change", scheduleSaveProjectDraft);
