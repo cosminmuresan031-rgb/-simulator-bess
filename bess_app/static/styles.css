@@ -17,7 +17,7 @@
   --green: #16805f;
   --blue: #2b6cb0;
   --shadow: 0 18px 50px rgba(4, 20, 37, 0.18);
-  --content-max: 1760px;
+  --content-max: 1900px;
 }
 
 * {
@@ -44,7 +44,7 @@ body {
 
 .app-shell {
   min-height: 100vh;
-  padding: 20px 16px;
+  padding: 20px 12px;
   background: transparent;
 }
 
@@ -234,7 +234,7 @@ select {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 410px) minmax(0, 1fr);
   gap: 20px;
   max-width: var(--content-max);
   margin: 0 auto;
@@ -574,7 +574,7 @@ input[type="checkbox"] {
 }
 
 .curve-table {
-  min-width: 1180px;
+  min-width: 1280px;
   margin: 0;
   border-collapse: separate;
   border-spacing: 0;
@@ -733,14 +733,14 @@ input[type="checkbox"] {
 
 .financial-layout {
   display: grid;
-  grid-template-columns: minmax(520px, 1.2fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(620px, 1.25fr) minmax(360px, 0.75fr);
   gap: 12px;
   margin-bottom: 14px;
 }
 
 .synthesis-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 1120px;
   border-collapse: collapse;
   margin-bottom: 14px;
   font-size: 13px;
@@ -830,7 +830,7 @@ canvas,
 }
 
 .scenario-cost-table {
-  min-width: 980px;
+  min-width: 1080px;
 }
 
 .scenario-cost-table tr.active td {
@@ -883,7 +883,7 @@ canvas,
 }
 
 .scenario-behavior-table {
-  min-width: 1480px;
+  min-width: 1640px;
 }
 
 .scenario-behavior-table tr.charge td {
