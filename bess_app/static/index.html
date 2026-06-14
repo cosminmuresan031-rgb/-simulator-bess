@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Simulator BESS</title>
+    <title>EnergyPilot</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <section id="authScreen" class="auth-screen">
       <form id="authForm" class="auth-card">
         <div>
-          <h1>SIMULATOR BESS</h1>
-          <p id="authSubtitle">Logare utilizator</p>
+          <h1>EnergyPilot</h1>
+          <p id="authSubtitle">Energy Sales Intelligence Platform</p>
         </div>
         <label>
           Email
@@ -28,12 +28,46 @@
     </section>
 
     <main id="appShell" class="app-shell is-hidden">
-      <section class="topbar">
-        <nav class="main-menu" aria-label="Meniu principal">
-          <button id="navConsumptionProfile" class="main-menu-item active" type="button" data-app-view="profile">Profil de consum</button>
+      <aside class="app-sidebar" aria-label="EnergyPilot navigation">
+        <div class="brand-lockup">
+          <button id="navConsumptionProfile" class="brand-wordmark main-menu-item active" type="button" data-app-view="profile">EnergyPilot</button>
+          <span>Energy Sales Intelligence Platform</span>
+          <small>Navigate every energy opportunity.</small>
+        </div>
+        <nav class="main-menu sidebar-primary-nav" aria-label="Meniu principal">
+          <button class="sidebar-roadmap-item active" type="button" data-roadmap-tab="client">Dashboard</button>
+          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="sourcing">Contract Opportunity</button>
+          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="procurement">Energy Profile Intelligence</button>
+          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="efficiency">Opportunities</button>
+          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="advanced">Visual Insights</button>
+          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="reports">Reports</button>
         </nav>
+        <div class="sidebar-bottom-nav">
+          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="client">Client Data</button>
+          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="client">Settings</button>
+        </div>
+      </aside>
+
+      <div class="app-main-frame">
+      <section class="topbar">
+        <div class="topbar-context">
+          <label>
+            Client Selector
+            <select id="topClientSelector">
+              <option>Client curent</option>
+            </select>
+          </label>
+          <label>
+            Date Range
+            <select id="topDateRange">
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+            </select>
+          </label>
+        </div>
         <div class="topbar-actions">
-          <div class="user-menu">
+          <button id="topGenerateReportBtn" class="primary topbar-report-button" type="button" data-roadmap-tab="reports">Generate Report</button>
+          <div class="user-menu" aria-label="User Profile">
             <span id="userEmail">-</span>
             <strong id="userPlan">Demo</strong>
           </div>
@@ -319,18 +353,18 @@
         <section class="panel profile-roadmap-panel">
           <div class="section-head">
             <div>
-              <h2 id="profileRoadmapTitle">1. Date client</h2>
-              <p>Profilare consum industrial pentru sourcing, eficientizare si raport.</p>
+              <h2 id="profileRoadmapTitle">Opportunity Dashboard</h2>
+              <p>Business intelligence pentru contract, profil energetic, oportunitati si decizie comerciala.</p>
             </div>
-            <span id="profileContractStatusChip" class="status-chip warn">Date client</span>
+            <span id="profileContractStatusChip" class="status-chip warn">Client setup</span>
           </div>
           <div class="profile-roadmap-tabs" id="profileRoadmapTabs" role="tablist" aria-label="Roadmap profilare consum">
-            <button class="active" type="button" data-roadmap-tab="client">Date contractuale</button>
-            <button type="button" data-roadmap-tab="sourcing">Contract furnizare</button>
-            <button type="button" data-roadmap-tab="procurement">Procurement DNA</button>
-            <button type="button" data-roadmap-tab="efficiency">Eficientizare</button>
-            <button type="button" data-roadmap-tab="advanced">Diagrame si raport</button>
-            <button type="button" data-open-simulator="true">SIMULATOR BESS</button>
+            <button class="active" type="button" data-roadmap-tab="client">Dashboard</button>
+            <button type="button" data-roadmap-tab="sourcing">Contract Opportunity</button>
+            <button type="button" data-roadmap-tab="procurement">Energy Profile Intelligence</button>
+            <button type="button" data-roadmap-tab="efficiency">Opportunities</button>
+            <button type="button" data-roadmap-tab="advanced">Visual Insights</button>
+            <button type="button" data-roadmap-tab="reports">Reports</button>
           </div>
 
           <div class="profile-roadmap-tab is-active" data-roadmap-panel="client">
@@ -431,10 +465,10 @@
 
           <div class="profile-roadmap-tab procurement-dna-tab" data-roadmap-panel="procurement">
             <div class="procurement-section">
-              <h3>Executive DNA Summary</h3>
+              <h3>Executive DNA</h3>
               <div class="procurement-card-grid procurement-summary-grid">
                 <div class="procurement-card procurement-card-wide">
-                  <span>Procurement DNA</span>
+                  <span>Energy Profile Intelligence</span>
                   <strong id="procurementDnaLabel">Profil in asteptare</strong>
                   <small id="procurementDnaSubtext">Profil operational, strategie achizitie si oportunitate energetica</small>
                 </div>
@@ -485,7 +519,7 @@
                   <small id="riskDnaGaugeLabel">Risc in asteptare</small>
                 </div>
               </div>
-              <p id="riskDnaInterpretation" class="procurement-interpretation-text">Curba orara de consum este necesara pentru generarea Procurement DNA.</p>
+              <p id="riskDnaInterpretation" class="procurement-interpretation-text">Curba orara de consum este necesara pentru generarea Energy Profile Intelligence.</p>
             </div>
 
             <div class="procurement-section load-dna-section">
@@ -561,42 +595,171 @@
               <div class="procurement-card procurement-card-wide procurement-report-card">
                 <span>Raport profesional</span>
                 <strong id="procurementFinalOutput">Profil mixt | High Risk Profile | No Immediate Opportunity</strong>
-                <small id="procurementReportText">Curba orara de consum este necesara pentru generarea Procurement DNA.</small>
+                <small id="procurementReportText">Curba orara de consum este necesara pentru generarea Energy Profile Intelligence.</small>
+              </div>
+            </div>
+            <div class="procurement-section">
+              <h3>Opportunity DNA</h3>
+              <div class="procurement-card-grid">
+                <div class="procurement-card">
+                  <span>Contract Opportunity</span>
+                  <strong id="opportunityDnaContract">In asteptare</strong>
+                  <small>Recomandare comerciala contract</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Storage Opportunity</span>
+                  <strong id="opportunityDnaStorage">0%</strong>
+                  <small>Fit BESS din profil si PZU</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Solar Opportunity</span>
+                  <strong id="opportunityDnaSolar">0%</strong>
+                  <small>Autoconsum in interval solar</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Grid Optimization</span>
+                  <strong id="opportunityDnaGrid">0%</strong>
+                  <small>ATR, varfuri si retea</small>
+                </div>
               </div>
             </div>
           </div>
 
           <div class="profile-roadmap-tab" data-roadmap-panel="efficiency">
-            <div class="roadmap-kpi-grid">
+            <div class="roadmap-kpi-grid opportunity-grid-lock">
+              <div class="roadmap-kpi commercial-score-card">
+                <span>Contract Optimization</span>
+                <strong id="commercialOpportunityScore">0%</strong>
+                <small id="commercialOpportunityLabel">Limited Opportunity</small>
+              </div>
               <div class="roadmap-kpi">
-                <span>Solar Fit Score</span>
+                <span>Solar Opportunity</span>
                 <strong id="profileKpiSolarFit">0%</strong>
                 <small>Consum 08:00 - 18:00</small>
               </div>
               <div class="roadmap-kpi">
-                <span>Storage Fit Score</span>
+                <span>PV Maintenance Opportunity</span>
+                <strong id="opportunityPvMaintenanceScore">0%</strong>
+                <small>Audit performanta PV / prosumator</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Storage Opportunity</span>
                 <strong id="profileKpiStorageFit">0%</strong>
-                <small>Spread PZU si consum seara</small>
+                <small id="opportunityStorageSavings">Potential savings: 0 lei</small>
               </div>
               <div class="roadmap-kpi">
-                <span>JT -> MT Opportunity</span>
-                <strong id="profileKpiJtMt">0%</strong>
-                <small id="profileKpiJtMtLabel">In asteptare</small>
-              </div>
-              <div class="roadmap-kpi">
-                <span>ATR Optimization</span>
+                <span>Grid Optimization</span>
                 <strong id="profileKpiAtrOptimization">0%</strong>
                 <small id="profileKpiAtrLabel">ATR profilare separat</small>
               </div>
               <div class="roadmap-kpi">
-                <span>Reactive Energy</span>
-                <strong id="profileKpiReactive">0%</strong>
-                <small id="profileKpiReactiveLabel">Fara cost introdus</small>
+                <span>EV Charging Opportunity</span>
+                <strong id="opportunityEvScore">0%</strong>
+                <small>Employee / Visitor / Fleet / Truck</small>
               </div>
-              <div class="roadmap-kpi">
-                <span>Energy Opportunity Score</span>
-                <strong id="profileKpiEnergyOpportunity">0%</strong>
-                <small>Contract + PZU + PV + BESS + ATR</small>
+            </div>
+            <div class="storage-opportunity-panel">
+              <div>
+                <span>Storage Opportunity</span>
+                <h3>BESS Opportunity Simulator</h3>
+                <p>Acceseaza simulatorul BESS existent, cu aceeasi logica functionala si aceleasi reguli de calcul.</p>
+              </div>
+              <div class="storage-opportunity-metrics">
+                <div><span>Storage Opportunity Score</span><strong id="storageOpportunityScore">0%</strong></div>
+                <div><span>Potential Savings</span><strong id="storagePotentialSavings">0 lei</strong></div>
+                <div><span>ROI</span><strong id="storageRoi">CAPEX necesar</strong></div>
+              </div>
+              <button class="primary" type="button" data-open-simulator="true">Launch BESS Opportunity Simulator</button>
+            </div>
+            <div class="commercial-engine-panel">
+              <div class="commercial-engine-grid">
+                <section>
+                  <h3>Commercial Opportunity Engine</h3>
+                  <p id="commercialSalesStory">Introdu curbele orare si preturile PZU pentru a genera automat Executive Pitch pentru KAM.</p>
+                  <div id="commercialValidationMessages" class="commercial-validation"></div>
+                </section>
+                <section>
+                  <h3>Top Opportunities Identified</h3>
+                  <div id="commercialTopList" class="commercial-top-list"></div>
+                </section>
+              </div>
+              <div class="commercial-ranking-wrap">
+                <table class="commercial-ranking-table">
+                  <thead>
+                    <tr>
+                      <th>Prioritate</th>
+                      <th>Oportunitate</th>
+                      <th>Scor</th>
+                      <th>Saving estimat</th>
+                      <th>Actiune comerciala</th>
+                    </tr>
+                  </thead>
+                  <tbody id="commercialRankingRows"></tbody>
+                </table>
+              </div>
+              <div class="sales-intelligence-panel">
+                <div class="sales-intelligence-grid">
+                  <section class="sales-story-card sales-story-wide">
+                    <h3>Executive Summary</h3>
+                    <p id="salesExecutiveSummary">Sales Intelligence insights pending. Additional consumption and market data required.</p>
+                    <span id="salesValidationMessage" class="sales-validation-chip">Insights pending</span>
+                  </section>
+                  <section class="sales-story-card">
+                    <h3>Executive Pitch</h3>
+                    <p id="salesExecutivePitch">Executive pitch se genereaza automat dupa validarea datelor.</p>
+                  </section>
+                  <section class="sales-story-card">
+                    <h3>Next Best Action</h3>
+                    <p id="salesNextBestAction">Introdu curbele si preturile PZU.</p>
+                  </section>
+                  <section class="sales-story-card">
+                    <h3>Why This Client?</h3>
+                    <div id="salesWhyClientList" class="sales-list"></div>
+                  </section>
+                  <section class="sales-story-card">
+                    <h3>Meeting Brief</h3>
+                    <div id="salesMeetingBrief" class="sales-list"></div>
+                  </section>
+                  <section class="sales-story-card sales-story-wide">
+                    <h3>Sales Email Generator</h3>
+                    <strong id="salesEmailSubject" class="sales-email-subject">Subiect email</strong>
+                    <p id="salesEmailBody">Emailul comercial se genereaza automat.</p>
+                  </section>
+                </div>
+                <div class="commercial-ranking-wrap">
+                  <table class="commercial-ranking-table">
+                    <thead>
+                      <tr>
+                        <th>Zona</th>
+                        <th>Sales talking point</th>
+                      </tr>
+                    </thead>
+                    <tbody id="salesTalkingPointsRows"></tbody>
+                  </table>
+                </div>
+                <div class="commercial-ranking-wrap sales-table-spaced">
+                  <table class="commercial-ranking-table">
+                    <thead>
+                      <tr>
+                        <th>Oportunitate</th>
+                        <th>Confidence</th>
+                        <th>Motiv</th>
+                      </tr>
+                    </thead>
+                    <tbody id="salesConfidenceRows"></tbody>
+                  </table>
+                </div>
+                <div class="commercial-ranking-wrap sales-table-spaced">
+                  <table class="commercial-ranking-table">
+                    <thead>
+                      <tr>
+                        <th>Obiectie posibila</th>
+                        <th>Raspuns recomandat</th>
+                      </tr>
+                    </thead>
+                    <tbody id="salesObjectionRows"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -605,13 +768,15 @@
             <div class="advanced-report-panel">
               <div class="advanced-report-head">
                 <div>
-                  <h3>Diagrame si raport client</h3>
+                  <h3 id="advancedReportHeading">Visual Insights</h3>
                   <p id="advancedReportStatus">Curba orara de consum este necesara pentru generarea diagramelor.</p>
                 </div>
                 <div class="advanced-report-actions">
-                  <button id="generatePdfReportBtn" class="primary" type="button">Genereaza raport PDF</button>
-                  <button id="exportAdvancedDataBtn" class="secondary" type="button">Export date Excel</button>
-                  <button id="downloadChartImagesBtn" class="secondary" type="button">Descarca imagini diagrame</button>
+                  <button id="generateReportPreviewBtn" class="secondary" type="button">Generate Report</button>
+                  <button id="previewReportBtn" class="secondary" type="button">Preview</button>
+                  <button id="generatePdfReportBtn" class="primary" type="button">Download PDF</button>
+                  <button id="exportAdvancedDataBtn" class="secondary" type="button">Download Excel</button>
+                  <button id="downloadChartImagesBtn" class="secondary" type="button">Download Charts</button>
                 </div>
               </div>
 
@@ -661,7 +826,7 @@
                   <canvas id="reportStorageOpportunityChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
                   <canvas id="reportPeakShavingChart" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="320"></canvas>
                 </div>
-                <p id="reportOpportunityText" class="advanced-report-text">Oportunitatile se calculeaza automat din profilul de consum, preturi PZU si Procurement DNA.</p>
+                <p id="reportOpportunityText" class="advanced-report-text">Oportunitatile se calculeaza automat din profilul de consum, preturi PZU si Energy Profile Intelligence.</p>
               </section>
             </div>
           </div>
@@ -718,7 +883,7 @@
         <section class="panel executive-panel">
           <div class="section-head">
             <div>
-              <h2 id="executivePanelTitle">4. Dashboard Executive</h2>
+              <h2 id="executivePanelTitle">Opportunity Dashboard</h2>
               <p id="executiveStatus">Sourcing client</p>
             </div>
             <span id="executiveRiskChip" class="status-chip warn">Risc sourcing</span>
@@ -759,6 +924,30 @@
             <div class="executive-card executive-card-wide">
               <span>Recomandare eficientizare</span>
               <strong id="executiveEfficiencyRecommendation">Introdu curbe</strong>
+            </div>
+            <div class="executive-card">
+              <span>Commercial Opportunity Score</span>
+              <strong id="executiveCommercialScore">0%</strong>
+            </div>
+            <div class="executive-card">
+              <span>Estimated Annual Savings</span>
+              <strong id="executiveCommercialSavings">0 lei</strong>
+            </div>
+            <div class="executive-card executive-card-wide">
+              <span>Top Opportunities</span>
+              <strong id="executiveTopOpportunities">Introdu curbe</strong>
+            </div>
+            <div class="executive-card executive-card-wide executive-card-story">
+              <span>Executive Pitch</span>
+              <strong id="executivePitch">Sales Intelligence insights pending.</strong>
+            </div>
+            <div class="executive-card executive-card-wide executive-card-story">
+              <span>Next Best Action</span>
+              <strong id="executiveNextBestAction">Introdu curbele si preturile PZU.</strong>
+            </div>
+            <div class="executive-card executive-card-wide executive-card-story">
+              <span>Why This Client?</span>
+              <strong id="executiveWhyClient">Additional consumption and market data required.</strong>
             </div>
           </div>
           <div class="roadmap-flow" aria-label="Flux profilare consum">
@@ -869,6 +1058,7 @@
           </div>
         </section>
       </section>
+      </div>
     </main>
     <script src="/app.js"></script>
   </body>

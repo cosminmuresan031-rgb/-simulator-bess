@@ -16,6 +16,8 @@ const state = {
   lastProfileRows: [],
   profileAnalytics: null,
   procurementDna: null,
+  commercialOpportunity: null,
+  salesIntelligence: null,
   advancedReport: null,
   projects: [],
   activeProjectId: null,
@@ -43,29 +45,34 @@ const MONTH_SHORT = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Se
 
 const PROFILE_ROADMAP_LAYOUTS = {
   client: {
-    profileTitle: "1. Date client",
-    executiveTitle: "4. Dashboard Executive",
-    analyticsTitle: "5. Date generate sourcing",
+    profileTitle: "Opportunity Dashboard",
+    executiveTitle: "Opportunity Dashboard",
+    analyticsTitle: "Date generate sourcing",
   },
   sourcing: {
-    profileTitle: "1. Contract furnizare",
-    executiveTitle: "2. Dashboard Executive",
-    analyticsTitle: "3. Date generate sourcing",
+    profileTitle: "2. Contract Opportunity",
+    executiveTitle: "Opportunity Dashboard",
+    analyticsTitle: "Date generate sourcing",
   },
   procurement: {
-    profileTitle: "1. Procurement DNA",
-    executiveTitle: "2. Dashboard Executive",
-    analyticsTitle: "3. Date generate sourcing",
+    profileTitle: "3. Energy Profile Intelligence",
+    executiveTitle: "Opportunity Dashboard",
+    analyticsTitle: "Date generate sourcing",
   },
   efficiency: {
-    profileTitle: "1. Eficientizare",
-    executiveTitle: "2. Dashboard Executive",
-    analyticsTitle: "2. Profil mediu orar",
+    profileTitle: "4. Opportunities",
+    executiveTitle: "Opportunity Dashboard",
+    analyticsTitle: "Profil mediu orar",
   },
   advanced: {
-    profileTitle: "1. Diagrame si raport",
-    executiveTitle: "2. Dashboard Executive",
-    analyticsTitle: "3. Date generate sourcing",
+    profileTitle: "5. Visual Insights",
+    executiveTitle: "Opportunity Dashboard",
+    analyticsTitle: "Date generate sourcing",
+  },
+  reports: {
+    profileTitle: "6. Reports",
+    executiveTitle: "Opportunity Dashboard",
+    analyticsTitle: "Date generate sourcing",
   },
 };
 const PROFILE_CONTRACT_FIELD_IDS = [
@@ -220,6 +227,7 @@ function applyProfileContract(values = {}) {
   if ($("profileExistingPv")) $("profileExistingPv").value = merged.existingPv || "Nu";
   if ($("profilePvKwp")) $("profilePvKwp").value = merged.pvKwp || 0;
   if ($("profileReactiveCostLei")) $("profileReactiveCostLei").value = merged.reactiveCostLei || 0;
+  updateTopbarContext(merged);
 }
 
 function financialAssumptions() {
@@ -1788,6 +1796,440 @@ function buildProfileOpportunity(metrics, analytics, contract) {
   };
 }
 
+function commercialPotentialLabel(score) {
+  if (score >= 76) return "High Commercial Potential";
+  if (score >= 51) return "Strong Opportunity";
+  if (score >= 26) return "Moderate Opportunity";
+  return "Limited Opportunity";
+}
+
+function commercialPriorityLabel(score) {
+  if (score >= 76) return "Prioritate critica";
+  if (score >= 51) return "Prioritate ridicata";
+  if (score >= 26) return "Prioritate medie";
+  return "Monitorizare";
+}
+
+function annualMarketCost(metrics, analytics) {
+  const annual = analytics?.annual || {};
+  const pmp = annual.pmpPzuLeiMwh || metrics.pmpPzu || 0;
+  return pmp * (metrics.totalConsumption || annual.consumptionMwh || 0);
+}
+
+function buildCommercialOpportunityEngine(profile, metrics, analytics, opportunity, contract, rows = [], procurementDna = null) {
+  const annual = analytics?.annual || {};
+  const scores = analytics?.scores || {};
+  const costDna = procurementDna?.costDna || buildCostDna(rows);
+  const loadDna = procurementDna?.loadDna || buildLoadDna(rows);
+  const totalMwh = metrics.totalConsumption || annual.consumptionMwh || 0;
+  const hasConsumption = totalMwh > 0;
+  const hasPrices = metrics.pricedHours > 0 || (annual.pricedHours || 0) > 0;
+  const pmp = annual.pmpPzuLeiMwh || metrics.pmpPzu || 0;
+  const averagePzu = annual.simplePzuAverageLeiMwh || metrics.simplePzuAverage || 0;
+  const profilePremiumLeiMwh = hasPrices ? Math.max(0, pmp - averagePzu) : 0;
+  const profilePremiumScore = hasPrices && averagePzu > 0 ? clamp((profilePremiumLeiMwh / averagePzu) * 220, 0, 100) : 0;
+  const peakBaseScore = Number.isFinite(loadDna.peakBaseRatio) ? clamp((loadDna.peakBaseRatio - 1) * 32, 0, 100) : 0;
+  const priceSpread = Math.max(0, annual.priceSpreadLeiMwh || 0);
+  const marketCost = annualMarketCost(metrics, analytics);
+  const pvInstalled = contract.existingPv === "Da" || contract.prosumer === "Da" || (contract.pvKwp || 0) > 0 || (profile.totals?.pvMwh || 0) > 0;
+  const solarMwh = sumRowsMwh(rows, (row, index) => {
+    const hour = rowHour(row, index);
+    return hour >= 8 && hour < 18;
+  });
+  const contractScore = hasConsumption
+    ? clamp(
+        profilePremiumScore * 0.35 +
+          (opportunity.spotMarketFitScore || 0) * 0.2 +
+          (opportunity.forecastabilityScore || 0) * 0.18 +
+          (opportunity.hedgingScore || 0) * 0.17 +
+          (metrics.sourcingRiskScore || 0) * 0.1,
+        0,
+        100,
+      )
+    : 0;
+  const solarScore = hasConsumption ? clamp(opportunity.solarFitScore || scores.pvFitScore || 0, 0, 100) : 0;
+  const pvMaintenanceScore = pvInstalled ? clamp(65 + Math.min(25, (contract.pvKwp || 0) / 20), 0, 100) : 0;
+  const storageScore = hasConsumption
+    ? clamp(
+        (opportunity.storageFitScore || scores.bessFitScore || 0) * 0.35 +
+          (costDna.available ? costDna.concentrationIndex || 0 : 0) * 0.25 +
+          (procurementDna?.riskScore || metrics.sourcingRiskScore || 0) * 0.25 +
+          peakBaseScore * 0.15,
+        0,
+        100,
+      )
+    : 0;
+  const peakShavingScore = clamp(Math.max(0, (metrics.peakMw || 0) - (metrics.averageMw || 0)) * 35, 0, 100);
+  const gridScore = hasConsumption
+    ? clamp((opportunity.jtMtScore || 0) * 0.35 + (opportunity.atrOptimizationScore || 0) * 0.35 + peakShavingScore * 0.3, 0, 100)
+    : 0;
+  const employeeChargingScore = clamp((metrics.dayPct || 0) * 0.55 + (metrics.loadFactorPct || 0) * 0.25 + (contract.voltage === "JT" ? 5 : 18), 0, 100);
+  const fleetChargingScore = clamp((metrics.nightPct || 0) * 0.25 + (metrics.dayPct || 0) * 0.25 + (metrics.averageMw || 0) * 18, 0, 100);
+  const truckChargingScore = clamp((contract.voltage === "MT" || contract.voltage === "IT" ? 28 : 8) + (metrics.peakMw || 0) * 12, 0, 100);
+  const visitorChargingScore = clamp((metrics.dayPct || 0) * 0.35 + (totalMwh / 12) * 0.18, 0, 100);
+  const evScore = hasConsumption ? Math.max(employeeChargingScore, fleetChargingScore, truckChargingScore, visitorChargingScore) : 0;
+  const evTypes = [
+    { label: "Employee Charging", score: employeeChargingScore },
+    { label: "Visitor Charging", score: visitorChargingScore },
+    { label: "Fleet Charging", score: fleetChargingScore },
+    { label: "Truck Charging", score: truckChargingScore },
+  ].filter((item) => item.score >= 35);
+  const basePrice = pmp || averagePzu || 450;
+  const opportunities = [
+    {
+      key: "contract",
+      name: "Contract Optimization",
+      weight: 20,
+      score: contractScore,
+      estimatedSavingsLei: Math.max(profilePremiumLeiMwh * totalMwh * 0.6, marketCost * (contractScore / 100) * 0.018),
+      action: opportunity.contractRecommendation || "Analiza contract",
+    },
+    {
+      key: "solar",
+      name: "Solar Opportunity",
+      weight: 15,
+      score: solarScore,
+      estimatedSavingsLei: solarMwh * basePrice * 0.16 * (solarScore / 100),
+      action: "Dimensionare PV pentru autoconsum 08:00-18:00",
+    },
+    {
+      key: "pv-maintenance",
+      name: "PV Maintenance Opportunity",
+      weight: 10,
+      score: pvMaintenanceScore,
+      estimatedSavingsLei: pvInstalled ? Math.max((profile.totals?.pvMwh || 0) * basePrice * 0.025, (contract.pvKwp || 0) * 35) : 0,
+      action: pvInstalled ? "Audit productie PV si mentenanta performanta" : "Nu exista PV/prosumator introdus",
+    },
+    {
+      key: "storage",
+      name: "Storage Opportunity",
+      weight: 25,
+      score: storageScore,
+      estimatedSavingsLei: (annual.expensiveConsumptionMwh || 0) * priceSpread * 0.14 * (storageScore / 100),
+      action: "Launch BESS Opportunity Simulator",
+    },
+    {
+      key: "grid",
+      name: "Grid Optimization",
+      weight: 15,
+      score: gridScore,
+      estimatedSavingsLei: (contract.reactiveCostLei || 0) * 0.5 + marketCost * (gridScore / 100) * 0.008,
+      action: opportunity.atrLabel || "Analiza ATR / JT -> MT / peak shaving",
+    },
+    {
+      key: "ev",
+      name: "EV Charging Opportunity",
+      weight: 15,
+      score: evScore,
+      estimatedSavingsLei: totalMwh * (evScore / 100) * 8,
+      action: evTypes.length ? evTypes.map((item) => item.label).join(" / ") : "Necesita date despre flota si parcari",
+    },
+  ].map((item) => ({
+    ...item,
+    score: Math.round(clamp(item.score, 0, 100)),
+    weightedScore: clamp(item.score, 0, 100) * (item.weight / 100),
+    estimatedSavingsLei: Math.max(0, Number(item.estimatedSavingsLei) || 0),
+  }));
+  const totalScore = Math.round(opportunities.reduce((sum, item) => sum + item.weightedScore, 0));
+  const ranked = [...opportunities].sort((a, b) => b.score - a.score || b.weightedScore - a.weightedScore);
+  const top = ranked.filter((item) => item.score > 0).slice(0, 3);
+  const estimatedAnnualSavingsLei = opportunities.reduce((sum, item) => sum + item.estimatedSavingsLei, 0);
+  const messages = [];
+  if (!hasConsumption) messages.push({ type: "warn", text: "Lipsesc curbele orare de consum. Scorurile comerciale raman orientative." });
+  if (!hasPrices) messages.push({ type: "warn", text: "Lipsesc preturile PZU. Contract Optimization, Storage si savings pot fi subestimate." });
+  if (!contract.atrKw) messages.push({ type: "warn", text: "ATR profilare nu este introdus. Grid Optimization poate fi incomplet." });
+  if (!pvInstalled) messages.push({ type: "info", text: "PV Maintenance devine activ dupa introducerea PV/prosumator." });
+  if (!messages.length) messages.push({ type: "info", text: "Date suficiente pentru prioritizare comerciala initiala." });
+  const topNames = top.map((item) => item.name).join(", ") || "Introdu curbe de consum";
+  const salesStory = hasConsumption
+    ? `Executive Pitch pentru KAM: clientul are ${commercialPotentialLabel(totalScore).toLowerCase()}, cu prioritate pe ${topNames}. Scorul comercial este ${totalScore}/100, iar economia anuala estimata este ${formatLei(estimatedAnnualSavingsLei)}. Prima discutie recomandata: ${top[0]?.action || "validarea datelor de consum si contract"}.`
+    : "Executive Pitch pentru KAM se genereaza dupa introducerea curbelor orare de consum si validarea datelor contractuale.";
+  return {
+    score: totalScore,
+    label: commercialPotentialLabel(totalScore),
+    estimatedAnnualSavingsLei,
+    opportunities: ranked,
+    topOpportunities: top,
+    evTypes,
+    messages,
+    salesStory,
+  };
+}
+
+function renderCommercialOpportunityEngine(engine) {
+  if (!$("commercialOpportunityScore")) return;
+  const opportunityByKey = Object.fromEntries((engine.opportunities || []).map((item) => [item.key, item]));
+  const storage = opportunityByKey.storage || {};
+  const pvMaintenance = opportunityByKey["pv-maintenance"] || {};
+  const ev = opportunityByKey.ev || {};
+  setText("commercialOpportunityScore", formatPercent(engine.score));
+  setText("commercialOpportunityLabel", engine.label);
+  setText("commercialEstimatedSavings", formatLei(engine.estimatedAnnualSavingsLei));
+  setText("opportunityPvMaintenanceScore", formatPercent(pvMaintenance.score || 0));
+  setText("opportunityEvScore", formatPercent(ev.score || 0));
+  setText("opportunityStorageSavings", `Potential savings: ${formatLei(storage.estimatedSavingsLei || 0)}`);
+  setText("storageOpportunityScore", formatPercent(storage.score || 0));
+  setText("storagePotentialSavings", formatLei(storage.estimatedSavingsLei || 0));
+  setText("storageRoi", (storage.estimatedSavingsLei || 0) > 0 ? "Necesita CAPEX" : "CAPEX necesar");
+  const top = engine.topOpportunities[0];
+  setText("commercialTopOpportunity", top ? top.name : "Introdu curbe");
+  setText("commercialTopOpportunityAction", top ? `${commercialPriorityLabel(top.score)} - ${top.action}` : "Prioritatea se genereaza automat");
+  setText("commercialSalesStory", engine.salesStory);
+  const validation = $("commercialValidationMessages");
+  if (validation) {
+    validation.innerHTML = "";
+    engine.messages.forEach((message) => {
+      const item = document.createElement("span");
+      item.className = message.type === "warn" ? "warn" : "";
+      item.textContent = message.text;
+      validation.appendChild(item);
+    });
+  }
+  const topList = $("commercialTopList");
+  if (topList) {
+    topList.innerHTML = "";
+    const items = engine.topOpportunities.length ? engine.topOpportunities : engine.opportunities.slice(0, 3);
+    items.forEach((item, index) => {
+      const row = document.createElement("div");
+      row.textContent = `${index + 1}. ${item.name} - ${formatPercent(item.score)} - ${formatLei(item.estimatedSavingsLei)}`;
+      topList.appendChild(row);
+    });
+  }
+  const tbody = $("commercialRankingRows");
+  if (tbody) {
+    tbody.innerHTML = "";
+    engine.opportunities.forEach((item, index) => {
+      const tr = document.createElement("tr");
+      [String(index + 1), item.name, formatPercent(item.score), formatLei(item.estimatedSavingsLei), item.action].forEach((value) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+}
+
+function salesOpportunityConfidence(item, context) {
+  const { hasConsumption, hasPrices, contract, opportunity } = context;
+  let confidence = 15 + (item.score || 0) * 0.25;
+  if (hasConsumption) confidence += 30;
+  if (hasPrices) confidence += 22;
+  if (contract.clientName || contract.cui || contract.distributor) confidence += 8;
+  if (item.key === "grid" && contract.atrKw > 0) confidence += 12;
+  if (item.key === "storage" && (opportunity.storageFitScore || 0) > 0) confidence += 8;
+  if (item.key === "solar" && (opportunity.solarFitScore || 0) > 0) confidence += 8;
+  if (item.key === "pv-maintenance" && (contract.existingPv === "Da" || contract.prosumer === "Da" || (contract.pvKwp || 0) > 0)) confidence += 18;
+  if (item.key === "ev" && hasConsumption) confidence += 5;
+  return Math.round(clamp(confidence, 0, 100));
+}
+
+function salesConfidenceReason(item, context) {
+  const { hasConsumption, hasPrices, contract } = context;
+  if (!hasConsumption) return "Lipsesc curbele de consum.";
+  if ((item.key === "contract" || item.key === "storage") && !hasPrices) return "Lipsesc preturile PZU pentru validare completa.";
+  if (item.key === "grid" && !contract.atrKw) return "ATR lipsa, analiza grid este partiala.";
+  if (item.key === "pv-maintenance" && !(contract.existingPv === "Da" || contract.prosumer === "Da" || (contract.pvKwp || 0) > 0)) return "PV/prosumator neintrodus.";
+  return item.score >= 50 ? "Date suficiente pentru discutie comerciala." : "Oportunitate de monitorizat.";
+}
+
+function salesTalkingPointFor(item, context) {
+  const { metrics, opportunity, commercial } = context;
+  switch (item.key) {
+    case "contract":
+      return `Pornim discutia de la ${opportunity.contractRecommendation}. Comparam PMP Client cu media PZU si aratam unde profilul consuma in ore scumpe.`;
+    case "storage":
+      return `Pozitionam BESS ca instrument de reducere expunere in ore scumpe si peak shaving. Urmatorul pas este rularea BESS Opportunity Simulator pe scenariul potrivit.`;
+    case "solar":
+      return `Consumul intre 08:00-18:00 indica potential de autoconsum PV. Discutia trebuie sa fie despre reducerea energiei cumparate in intervalul solar.`;
+    case "grid":
+      return `ATR, tensiunea si varfurile de consum indica daca exista optimizare de retea, trecere JT-MT sau reducere penalizari/varfuri.`;
+    case "ev":
+      return `Profilul poate sustine discutii de incarcare Employee, Visitor, Fleet sau Truck, in functie de utilizarea locatiei si puterea disponibila.`;
+    case "pv-maintenance":
+      return `Daca exista PV/prosumator, propunem audit de performanta si mentenanta pentru a evita pierderi de productie si autoconsum ratat.`;
+    default:
+      return `${item.name} are scor ${formatPercent(item.score)} si impact estimat de ${formatLei(item.estimatedSavingsLei || 0)}.`;
+  }
+}
+
+function nextBestActionFor(item, context) {
+  if (!context.hasConsumption) return "Introdu si valideaza curbele orare de consum.";
+  if (!context.hasPrices && (item?.key === "contract" || item?.key === "storage")) return "Incarca sau valideaza preturile PZU pentru anul analizat.";
+  switch (item?.key) {
+    case "storage":
+      return "Ruleaza BESS Opportunity Simulator si exporta scenariul recomandat.";
+    case "contract":
+      return "Pregateste comparatia contractuala si oferta de optimizare pe profilul PZU.";
+    case "solar":
+      return "Dimensioneaza PV pe intervalul 08:00-18:00 si pregateste analiza de autoconsum.";
+    case "grid":
+      return "Verifica ATR, varfurile de consum si oportunitatea JT -> MT / peak shaving.";
+    case "ev":
+      return "Califica necesarul EV: Employee, Visitor, Fleet sau Truck Charging.";
+    case "pv-maintenance":
+      return "Solicita date PV si propune audit de productie/mentenanta.";
+    default:
+      return "Valideaza datele de consum, contract si PZU cu clientul.";
+  }
+}
+
+function buildSalesObjections(context) {
+  const objections = [];
+  const topKeys = new Set((context.commercial.topOpportunities || []).map((item) => item.key));
+  if (!context.hasConsumption || !context.hasPrices) {
+    objections.push({
+      objection: "Datele nu sunt suficiente pentru o decizie.",
+      response: "Folosim raportul ca screening initial si validam curbele/PZU inainte de oferta finala.",
+    });
+  }
+  if (topKeys.has("storage") || (context.opportunity.storageFitScore || 0) >= 50) {
+    objections.push({
+      objection: "Investitia in baterie pare prea mare.",
+      response: "Rulam scenariul BESS pe orele reale si prezentam comportamentul incarcare/descarcare, nu doar o estimare generala.",
+    });
+  }
+  if (topKeys.has("solar") || (context.opportunity.solarFitScore || 0) >= 50) {
+    objections.push({
+      objection: "PV nu acopera consumul nostru real.",
+      response: "Dimensionarea se face pe consumul 08:00-18:00 si pe autoconsum, nu pe putere instalata maxima.",
+    });
+  }
+  if (topKeys.has("contract")) {
+    objections.push({
+      objection: "Contractul actual este deja bun.",
+      response: "Comparam PMP Client cu media PZU si identificam orele in care profilul este penalizat.",
+    });
+  }
+  objections.push({
+    objection: "Nu avem timp pentru un proiect complex.",
+    response: `Urmatorul pas este unul scurt: ${context.nextBestAction}`,
+  });
+  return objections.slice(0, 5);
+}
+
+function buildSalesIntelligenceEngine(profile, metrics, analytics, opportunity, contract, rows = [], procurementDna = null, commercial = null) {
+  const commercialEngine = commercial || buildCommercialOpportunityEngine(profile, metrics, analytics, opportunity, contract, rows, procurementDna);
+  const hasConsumption = (metrics.totalConsumption || 0) > 0;
+  const hasPrices = (metrics.pricedHours || 0) > 0;
+  const top = commercialEngine.topOpportunities?.[0] || commercialEngine.opportunities?.[0] || null;
+  const topNames = (commercialEngine.topOpportunities?.length ? commercialEngine.topOpportunities : commercialEngine.opportunities || [])
+    .slice(0, 3)
+    .map((item) => item.name);
+  const why = [];
+  if (hasConsumption) {
+    why.push(`Consum anual analizat: ${formatMetric(metrics.totalConsumption, " MWh")}.`);
+    if ((metrics.totalConsumption || 0) >= 1000) why.push("Consum ridicat, relevant pentru oferte integrate si economii anuale vizibile.");
+    if ((metrics.loadFactorPct || 0) >= 60) why.push("Profil relativ stabil, potrivit pentru discutii contractuale si hedging.");
+    if ((opportunity.storageFitScore || 0) >= 50) why.push("Oportunitate BESS: consum in intervale potrivite pentru arbitraj/peak shaving.");
+    if ((opportunity.solarFitScore || 0) >= 50) why.push("Oportunitate PV: consum relevant in intervalul solar 08:00-18:00.");
+    if ((opportunity.jtMtScore || 0) >= 50 || (opportunity.atrOptimizationScore || 0) >= 50) why.push("Oportunitate ATR/Grid: varfurile si puterea aprobata merita validate.");
+    const ev = commercialEngine.opportunities?.find((item) => item.key === "ev");
+    if ((ev?.score || 0) >= 50) why.push("Oportunitate EV: profilul permite calificarea Employee / Fleet / Visitor / Truck Charging.");
+  }
+  if (!why.length) why.push("Sales Intelligence insights pending. Additional consumption and market data required.");
+  const nextBestAction = nextBestActionFor(top, { hasConsumption, hasPrices });
+  const context = { profile, metrics, analytics, opportunity, contract, procurementDna, commercial: commercialEngine, hasConsumption, hasPrices, nextBestAction };
+  const executivePitch = hasConsumption
+    ? `Clientul are ${commercialEngine.label.toLowerCase()} si merita abordat pe ${topNames.join(", ") || "validarea oportunitatilor"}. Propunerea initiala: ${nextBestAction}`
+    : "Sales Intelligence insights pending. Additional consumption and market data required.";
+  const executiveSummary = hasConsumption
+    ? `EnergyPilot identifica automat oportunitatile comerciale pentru client. Scorul comercial este ${commercialEngine.score}/100, economia anuala estimata este ${formatLei(commercialEngine.estimatedAnnualSavingsLei)}, iar prioritatea principala este ${top?.name || "validarea datelor"}.`
+    : "Sales Intelligence insights pending. Additional consumption and market data required.";
+  const talkingPoints = (commercialEngine.opportunities || []).map((item) => ({
+    name: item.name,
+    text: salesTalkingPointFor(item, context),
+  }));
+  const confidence = (commercialEngine.opportunities || []).map((item) => ({
+    name: item.name,
+    score: salesOpportunityConfidence(item, context),
+    reason: salesConfidenceReason(item, context),
+  }));
+  const meetingBrief = [
+    `Client Snapshot: ${contract.clientName || "Client"} | consum ${formatMetric(metrics.totalConsumption || 0, " MWh")} | varf ${formatMetric(metrics.peakMw || 0, " MW")}.`,
+    `Top Opportunities: ${topNames.join(", ") || "in asteptare"}.`,
+    `Risks: ${hasPrices ? riskLabel(metrics.sourcingRiskScore || 0) : "PZU lipsa"} | ${procurementDna?.riskLabel || "Risk DNA in asteptare"}.`,
+    `Recommended Pitch: ${executivePitch}`,
+    `Next Step: ${nextBestAction}`,
+  ];
+  const emailSubject = hasConsumption
+    ? `Oportunitati EnergyPilot pentru ${contract.clientName || "clientul analizat"}`
+    : `Date necesare pentru analiza EnergyPilot`;
+  const emailBody = hasConsumption
+    ? `Buna ziua,\n\nAm analizat profilul energetic si am identificat urmatoarele directii prioritare: ${topNames.join(", ") || "validare date"}.\n\nScorul comercial EnergyPilot este ${commercialEngine.score}/100, cu impact anual estimat de ${formatLei(commercialEngine.estimatedAnnualSavingsLei)}. Recomand urmatorul pas: ${nextBestAction}\n\nPutem programa o discutie scurta pentru validarea datelor si alegerea scenariului potrivit.\n\nCu stima,`
+    : `Buna ziua,\n\nPentru a genera analiza EnergyPilot completa avem nevoie de curbele orare de consum si preturile PZU aferente perioadei analizate.\n\nDupa validare putem identifica oportunitatile comerciale, impactul financiar si urmatorii pasi.\n\nCu stima,`;
+  const validationMessage = hasConsumption && hasPrices
+    ? "Sales Intelligence ready."
+    : "Sales Intelligence insights pending. Additional consumption and market data required.";
+  return {
+    executiveSummary,
+    executivePitch,
+    whyThisClient: why,
+    talkingPoints,
+    nextBestAction,
+    confidence,
+    objections: buildSalesObjections(context),
+    meetingBrief,
+    emailSubject,
+    emailBody,
+    validationMessage,
+  };
+}
+
+function fillTextList(id, items = []) {
+  const container = $(id);
+  if (!container) return;
+  container.innerHTML = "";
+  items.forEach((text) => {
+    const item = document.createElement("span");
+    item.textContent = text;
+    container.appendChild(item);
+  });
+}
+
+function fillRows(tbodyId, rows = []) {
+  const tbody = $(tbodyId);
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    row.forEach((value) => {
+      const td = document.createElement("td");
+      td.textContent = value;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function renderSalesIntelligenceEngine(engine, commercial) {
+  if (!engine) return;
+  setText("salesExecutiveSummary", engine.executiveSummary);
+  setText("salesExecutivePitch", engine.executivePitch);
+  setText("salesNextBestAction", engine.nextBestAction);
+  setText("salesEmailSubject", engine.emailSubject);
+  setText("salesEmailBody", engine.emailBody);
+  setText("salesValidationMessage", engine.validationMessage);
+  $("salesValidationMessage")?.classList.toggle("ok", engine.validationMessage === "Sales Intelligence ready.");
+  fillTextList("salesWhyClientList", engine.whyThisClient);
+  fillTextList("salesMeetingBrief", engine.meetingBrief);
+  fillRows("salesTalkingPointsRows", engine.talkingPoints.map((item) => [item.name, item.text]));
+  fillRows("salesConfidenceRows", engine.confidence.map((item) => [item.name, formatPercent(item.score), item.reason]));
+  fillRows("salesObjectionRows", engine.objections.map((item) => [item.objection, item.response]));
+  setText("executiveCommercialScore", formatPercent(commercial?.score || 0));
+  setText("executiveCommercialSavings", formatLei(commercial?.estimatedAnnualSavingsLei || 0));
+  setText(
+    "executiveTopOpportunities",
+    (commercial?.topOpportunities?.length ? commercial.topOpportunities : commercial?.opportunities || [])
+      .slice(0, 3)
+      .map((item) => item.name)
+      .join(" | ") || "Introdu curbe",
+  );
+  setText("executivePitch", engine.executivePitch);
+  setText("executiveNextBestAction", engine.nextBestAction);
+  setText("executiveWhyClient", engine.whyThisClient.slice(0, 2).join(" "));
+}
+
 function setRoadmapStep(step, done, warn = false) {
   const element = document.querySelector(`[data-roadmap-step="${step}"]`);
   if (!element) return;
@@ -1816,6 +2258,22 @@ function setText(id, value) {
   if (element) element.textContent = value;
 }
 
+function updateTopbarContext(contract = profileContractData()) {
+  const selector = $("topClientSelector");
+  if (selector) {
+    let option = selector.querySelector("option");
+    if (!option) {
+      option = document.createElement("option");
+      selector.appendChild(option);
+    }
+    option.textContent = contract.clientName || "Client curent";
+    option.value = contract.clientName || "current";
+  }
+  const topDateRange = $("topDateRange");
+  const priceYear = $("priceYear");
+  if (topDateRange && priceYear) topDateRange.value = priceYear.value || "2025";
+}
+
 function updateProfileRoadmapLayout(tab = "client") {
   const layout = PROFILE_ROADMAP_LAYOUTS[tab] || PROFILE_ROADMAP_LAYOUTS.client;
   const view = $("consumptionProfileView");
@@ -1823,14 +2281,16 @@ function updateProfileRoadmapLayout(tab = "client") {
   setText("profileRoadmapTitle", layout.profileTitle);
   setText("executivePanelTitle", layout.executiveTitle);
   setText("analyticsPanelTitle", layout.analyticsTitle);
+  setText("advancedReportHeading", tab === "reports" ? "Reports" : "Visual Insights");
 }
 
 function renderProfileRoadmap(metrics, opportunity, contract) {
   if (!$("profileRoadmapTabs")) return;
+  updateTopbarContext(contract);
   const chip = $("profileContractStatusChip");
   if (chip) {
     chip.className = `status-chip ${opportunity.clientReady ? "ok" : "warn"}`;
-    chip.textContent = opportunity.clientReady ? (contract.clientName || "Date salvate") : "Date client";
+    chip.textContent = opportunity.clientReady ? (contract.clientName || "Client setup salvat") : "Client setup";
   }
 
   setText("profileKpiPmpPzu", metrics.pmpPzu > 0 ? `${numberFormat.format(metrics.pmpPzu)} lei/MWh` : "0,00");
@@ -1857,6 +2317,10 @@ function renderProfileRoadmap(metrics, opportunity, contract) {
     contract.reactiveCostLei > 0 ? `${formatLei(contract.reactiveCostLei)} anual` : "Fara cost introdus",
   );
   setText("profileKpiEnergyOpportunity", formatPercent(opportunity.energyOpportunityScore));
+  setText("opportunityDnaContract", opportunity.contractRecommendation || "In asteptare");
+  setText("opportunityDnaStorage", formatPercent(opportunity.storageFitScore));
+  setText("opportunityDnaSolar", formatPercent(opportunity.solarFitScore));
+  setText("opportunityDnaGrid", formatPercent(Math.max(opportunity.atrOptimizationScore || 0, opportunity.jtMtScore || 0)));
 }
 
 function stdDeviation(values) {
@@ -2067,7 +2531,7 @@ function buildCostDna(rows = []) {
 }
 
 function riskDnaText(score) {
-  if (!Number.isFinite(score)) return "Curba orara de consum este necesara pentru generarea Procurement DNA.";
+  if (!Number.isFinite(score)) return "Curba orara de consum este necesara pentru generarea Energy Profile Intelligence.";
   if (score <= 25) {
     return "Profilul prezinta risc redus, cu un consum predictibil si o volatilitate scazuta. Achizitia poate fi structurata cu un grad bun de incredere.";
   }
@@ -2109,10 +2573,10 @@ function costDnaText(score, available) {
 }
 
 function procurementReportText(dna) {
-  if (!dna.hasConsumption) return "Curba orara de consum este necesara pentru generarea Procurement DNA.";
+  if (!dna.hasConsumption) return "Curba orara de consum este necesara pentru generarea Energy Profile Intelligence.";
   const parts = [dna.riskText, dna.loadText, dna.costText];
   if (dna.validConsumptionHours > 0 && dna.validConsumptionHours < 500) {
-    parts.unshift("Numar redus de ore disponibile. Clasificarea Procurement DNA poate avea acuratete limitata.");
+    parts.unshift("Numar redus de ore disponibile. Clasificarea Energy Profile Intelligence poate avea acuratete limitata.");
   }
   parts.push(`Recomandarea contractuala rezultata este: ${dna.contractRecommendation}.`);
   return parts.filter(Boolean).join(" ");
@@ -2323,7 +2787,7 @@ function renderProcurementDna(profile, metrics, analytics, opportunity, contract
   setText(
     "procurementDnaSubtext",
     dna.lowHoursWarning
-      ? "Numar redus de ore disponibile. Clasificarea Procurement DNA poate avea acuratete limitata."
+      ? "Numar redus de ore disponibile. Clasificarea Energy Profile Intelligence poate avea acuratete limitata."
       : "Profil operational, strategie achizitie si oportunitate energetica",
   );
   setText("procurementConfidence", formatPercent(dna.confidenceScore));
@@ -2468,6 +2932,14 @@ function renderExecutiveDashboard(profile, rows = state.lastProfileRows) {
   renderGeneratedSourcingData(state.profileAnalytics);
   renderProfileRoadmap(metrics, opportunity, contract);
   renderProcurementDna(profile, metrics, state.profileAnalytics, opportunity, contract, rows);
+  const commercialOpportunity = buildCommercialOpportunityEngine(profile, metrics, state.profileAnalytics, opportunity, contract, rows, state.procurementDna);
+  state.commercialOpportunity = commercialOpportunity;
+  window.bessCommercialOpportunity = commercialOpportunity;
+  renderCommercialOpportunityEngine(commercialOpportunity);
+  const salesIntelligence = buildSalesIntelligenceEngine(profile, metrics, state.profileAnalytics, opportunity, contract, rows, state.procurementDna, commercialOpportunity);
+  state.salesIntelligence = salesIntelligence;
+  window.bessSalesIntelligence = salesIntelligence;
+  renderSalesIntelligenceEngine(salesIntelligence, commercialOpportunity);
   renderAdvancedReport(profile, metrics, state.profileAnalytics, opportunity, contract, rows);
   $("executiveAnnualConsumption").textContent = numberFormat.format(metrics.totalConsumption);
   $("executivePmpPzu").textContent = metrics.pmpPzu > 0 ? `${numberFormat.format(metrics.pmpPzu)} lei/MWh` : "0,00";
@@ -3341,7 +3813,7 @@ function drawProcurementRadarChart(items = []) {
   const canvas = $("procurementRadarChart");
   if (!canvas) return;
   const { ctx, width, height } = prepareChartCanvas(canvas, 560, 340);
-  drawProcurementChartFrame(ctx, width, height, "Procurement DNA Radar");
+  drawProcurementChartFrame(ctx, width, height, "Energy Profile Intelligence Radar");
   if (!items.length) return;
 
   const centerX = width / 2;
@@ -3688,6 +4160,10 @@ function buildAdvancedReportData(profile, metrics, analytics, opportunity, contr
   const procurementDna = state.procurementDna || buildProcurementDna(profile, metrics, analytics, opportunity, contract, rows);
   const loadDna = procurementDna.loadDna || buildLoadDna(rows);
   const costDna = procurementDna.costDna || buildCostDna(rows);
+  const commercialOpportunity =
+    state.commercialOpportunity || buildCommercialOpportunityEngine(profile, metrics, analytics, opportunity, contract, rows, procurementDna);
+  const salesIntelligence =
+    state.salesIntelligence || buildSalesIntelligenceEngine(profile, metrics, analytics, opportunity, contract, rows, procurementDna, commercialOpportunity);
   const validConsumptionRows = rows.filter((row) => Number(row.consumption_mwh) > 0);
   const hasConsumption = validConsumptionRows.length > 0;
   const hasPrices = priceRowsWithCost(rows).length > 0;
@@ -3740,6 +4216,8 @@ function buildAdvancedReportData(profile, metrics, analytics, opportunity, contr
     analytics,
     opportunity,
     procurementDna,
+    commercialOpportunity,
+    salesIntelligence,
     loadDna,
     costDna,
     rows,
@@ -4162,6 +4640,26 @@ function generateAdvancedPdfReport() {
     const image = chartImages.find((item) => item.id === id);
     return image ? `<figure><img src="${image.src}" alt="${escapeHtml(caption)}" /><figcaption>${escapeHtml(caption)}</figcaption></figure>` : "";
   };
+  const commercial = data.commercialOpportunity || { score: 0, label: "Limited Opportunity", estimatedAnnualSavingsLei: 0, topOpportunities: [], salesStory: "" };
+  const sales = data.salesIntelligence || {
+    executiveSummary: "Sales Intelligence insights pending. Additional consumption and market data required.",
+    executivePitch: "",
+    whyThisClient: [],
+    talkingPoints: [],
+    confidence: [],
+    objections: [],
+    meetingBrief: [],
+    nextBestAction: "",
+  };
+  const topOpportunityList = commercial.topOpportunities?.length
+    ? commercial.topOpportunities
+        .map((item) => `<li><strong>${escapeHtml(item.name)}</strong>: ${numberFormat.format(item.score)}% | ${escapeHtml(formatLei(item.estimatedSavingsLei))} | ${escapeHtml(item.action)}</li>`)
+        .join("")
+    : "<li>Introdu curbele orare de consum pentru prioritizare comerciala.</li>";
+  const listHtml = (items = []) => items.length ? items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>In asteptare.</li>";
+  const talkingPointsHtml = (sales.talkingPoints || []).map((item) => `<li><strong>${escapeHtml(item.name)}</strong>: ${escapeHtml(item.text)}</li>`).join("");
+  const confidenceHtml = (sales.confidence || []).map((item) => `<li><strong>${escapeHtml(item.name)}</strong>: ${numberFormat.format(item.score || 0)}% - ${escapeHtml(item.reason)}</li>`).join("");
+  const objectionsHtml = (sales.objections || []).map((item) => `<li><strong>${escapeHtml(item.objection)}</strong>: ${escapeHtml(item.response)}</li>`).join("");
   const html = `<!doctype html>
     <html lang="ro">
       <head>
@@ -4192,12 +4690,15 @@ function generateAdvancedPdfReport() {
       </head>
       <body>
         <section class="page">
-          <div class="brand"><strong>SIMULATOR BESS</strong><span>${escapeHtml(dateTimeFormat.format(new Date()))}</span></div>
+          <div class="brand"><strong>ENERGYPILOT</strong><span>${escapeHtml(dateTimeFormat.format(new Date()))}</span></div>
           <h1>Executive Summary</h1>
-          <h2>Dashboard Executive</h2>
+          <h2>Executive Opportunity Summary</h2>
           <div class="grid">
             <div class="kpi"><span>Client</span><strong>${escapeHtml(contract.clientName || "Client")}</strong></div>
             <div class="kpi"><span>Perioada analizata</span><strong>${selectedYear()}</strong></div>
+            <div class="kpi"><span>Commercial Opportunity Score</span><strong>${numberFormat.format(commercial.score || 0)} / 100</strong></div>
+            <div class="kpi"><span>Potential comercial</span><strong>${escapeHtml(commercial.label || "Limited Opportunity")}</strong></div>
+            <div class="kpi"><span>Estimated Annual Savings</span><strong>${escapeHtml(formatLei(commercial.estimatedAnnualSavingsLei || 0))}</strong></div>
             <div class="kpi"><span>Consum anual</span><strong>${numberFormat.format(data.metrics.totalConsumption || 0)} MWh</strong></div>
             <div class="kpi"><span>PMP Client</span><strong>${data.hasPrices ? numberFormat.format(data.annual.pmpPzuLeiMwh || 0) : "N/A"} lei/MWh</strong></div>
             <div class="kpi"><span>Consum zi</span><strong>${numberFormat.format(data.dayMwh)} MWh / ${numberFormat.format(data.dayPct)}%</strong></div>
@@ -4206,12 +4707,34 @@ function generateAdvancedPdfReport() {
             <div class="kpi"><span>Medie orara</span><strong>${numberFormat.format(data.metrics.averageMw || 0)} MW</strong></div>
             <div class="kpi"><span>Load factor</span><strong>${numberFormat.format(data.metrics.loadFactorPct || 0)}%</strong></div>
             <div class="kpi"><span>Scor risc sourcing</span><strong>${numberFormat.format(data.metrics.sourcingRiskScore || 0)}%</strong></div>
-            <div class="kpi"><span>Procurement DNA</span><strong>${escapeHtml(data.procurementDna.finalOutput || "-")}</strong></div>
+            <div class="kpi"><span>Energy Profile Intelligence</span><strong>${escapeHtml(data.procurementDna.finalOutput || "-")}</strong></div>
             <div class="kpi"><span>Recomandare contract</span><strong>${escapeHtml(data.procurementDna.contractRecommendation || "-")}</strong></div>
             <div class="kpi"><span>Recomandare eficientizare</span><strong>${escapeHtml(data.opportunity.efficiencyRecommendation || "-")}</strong></div>
             <div class="kpi"><span>Cost Concentration</span><strong>${Number.isFinite(data.costDna.concentrationIndex) ? numberFormat.format(data.costDna.concentrationIndex) : "N/A"}</strong></div>
           </div>
+          <h3>Top Opportunities Identified</h3>
+          <ul>${topOpportunityList}</ul>
+          <p>${escapeHtml(sales.executiveSummary || commercial.salesStory || "")}</p>
+          <p><strong>Executive Pitch:</strong> ${escapeHtml(sales.executivePitch || "")}</p>
+          <h2>Dashboard Executive</h2>
           <p>${escapeHtml(data.procurementDna.reportText || data.consumptionText)}</p>
+        </section>
+        <section class="page">
+          <h2>Client Story</h2>
+          <h3>Why This Client?</h3>
+          <ul>${listHtml(sales.whyThisClient)}</ul>
+          <h3>Sales Talking Points</h3>
+          <ul>${talkingPointsHtml || "<li>In asteptare.</li>"}</ul>
+          <h3>Opportunity Confidence Score</h3>
+          <ul>${confidenceHtml || "<li>In asteptare.</li>"}</ul>
+        </section>
+        <section class="page">
+          <h2>Recommended Actions & Next Steps</h2>
+          <p><strong>Next Best Action:</strong> ${escapeHtml(sales.nextBestAction || "In asteptare.")}</p>
+          <h3>Objection Handling</h3>
+          <ul>${objectionsHtml || "<li>In asteptare.</li>"}</ul>
+          <h3>Meeting Brief</h3>
+          <ul>${listHtml(sales.meetingBrief)}</ul>
         </section>
         <section class="page">
           <h2>Profil consum</h2>
@@ -4265,6 +4788,11 @@ function exportAdvancedDataCsv() {
     </table>`;
   const executiveRows = [
     ["Client", data.contract.clientName || "Client"],
+    ["Commercial Opportunity Score", `${numberFormat.format(data.commercialOpportunity?.score || 0)} / 100`],
+    ["Commercial Potential", data.commercialOpportunity?.label || "Limited Opportunity"],
+    ["Estimated Annual Savings", formatLei(data.commercialOpportunity?.estimatedAnnualSavingsLei || 0)],
+    ["Executive Pitch", data.salesIntelligence?.executivePitch || ""],
+    ["Next Best Action", data.salesIntelligence?.nextBestAction || ""],
     ["Consum anual MWh", numberFormat.format(data.metrics.totalConsumption || 0)],
     ["Consum zi MWh", numberFormat.format(data.dayMwh)],
     ["Consum zi %", numberFormat.format(data.dayPct)],
@@ -4275,10 +4803,30 @@ function exportAdvancedDataCsv() {
     ["Varf consum MW", numberFormat.format(data.metrics.peakMw || 0)],
     ["Medie orara MW", numberFormat.format(data.metrics.averageMw || 0)],
     ["Load factor %", numberFormat.format(data.metrics.loadFactorPct || 0)],
-    ["Procurement DNA", data.procurementDna.finalOutput || "-"],
+    ["Energy Profile Intelligence", data.procurementDna.finalOutput || "-"],
     ["Recomandare contract", data.procurementDna.contractRecommendation || "-"],
     ["Recomandare eficientizare", data.opportunity.efficiencyRecommendation || "-"],
   ];
+  const commercialRows = (data.commercialOpportunity?.opportunities || []).map((item, index) => [
+    String(index + 1),
+    item.name,
+    numberFormat.format(item.score || 0),
+    numberFormat.format(item.weight || 0),
+    formatLei(item.estimatedSavingsLei || 0),
+    item.action,
+  ]);
+  const salesSummaryRows = [
+    ["Executive Summary", data.salesIntelligence?.executiveSummary || ""],
+    ["Executive Pitch", data.salesIntelligence?.executivePitch || ""],
+    ["Next Best Action", data.salesIntelligence?.nextBestAction || ""],
+    ["Email Subject", data.salesIntelligence?.emailSubject || ""],
+    ["Email Body", data.salesIntelligence?.emailBody || ""],
+  ];
+  const whyRows = (data.salesIntelligence?.whyThisClient || []).map((item, index) => [String(index + 1), item]);
+  const talkingRows = (data.salesIntelligence?.talkingPoints || []).map((item) => [item.name, item.text]);
+  const confidenceRows = (data.salesIntelligence?.confidence || []).map((item) => [item.name, numberFormat.format(item.score || 0), item.reason]);
+  const objectionRows = (data.salesIntelligence?.objections || []).map((item) => [item.objection, item.response]);
+  const meetingRows = (data.salesIntelligence?.meetingBrief || []).map((item, index) => [String(index + 1), item]);
   const monthlyRows = data.monthly.map((row) => [
     row.month,
     numberFormat.format(row.consumptionMwh || 0),
@@ -4333,15 +4881,22 @@ function exportAdvancedDataCsv() {
         </style>
       </head>
       <body>
-        <h1>SIMULATOR BESS - Export date diagrame si raport</h1>
+        <h1>ENERGYPILOT - Export date Reports</h1>
         ${table("Dashboard Executive", ["Indicator", "Valoare"], executiveRows)}
+        ${table("Sales Intelligence Summary", ["Indicator", "Valoare"], salesSummaryRows)}
+        ${table("Why This Client", ["#", "Argument"], whyRows)}
+        ${table("Sales Talking Points", ["Zona", "Argument comercial"], talkingRows)}
+        ${table("Opportunity Confidence Score", ["Oportunitate", "Confidence", "Motiv"], confidenceRows)}
+        ${table("Objection Handling", ["Obiectie", "Raspuns recomandat"], objectionRows)}
+        ${table("Meeting Brief", ["#", "Punct"], meetingRows)}
+        ${table("Commercial Opportunity Ranking", ["Prioritate", "Oportunitate", "Scor", "Pondere", "Saving estimat", "Actiune comerciala"], commercialRows)}
         ${table("Consum pe intervale orare", ["Interval", "Consum MWh", "Pondere %"], intervalRows)}
         ${table("Date lunare analizate", ["Luna", "Consum MWh", "PV MWh", "PMP Client", "Media PZU", "Ore scumpe MWh", "Ore ieftine MWh", "Weekday MWh", "Weekend MWh"], monthlyRows)}
         ${table("Date orare analizate", ["Timestamp", "Luna", "Zi", "Ora", "Consum MWh", "PV MWh", "Pret PZU lei/MWh", "Cost PZU lei", "Zi/Noapte", "Interval orar", "Tip zi"], hourlyRows)}
       </body>
     </html>`;
   const blob = new Blob([`\ufeff${html}`], { type: "application/vnd.ms-excel;charset=utf-8" });
-  downloadBlob(blob, `Diagrame_raport_${safeFilenamePart(data.contract.clientName || "Client", "Client")}.xls`);
+  downloadBlob(blob, `EnergyPilot_Reports_${safeFilenamePart(data.contract.clientName || "Client", "Client")}.xls`);
 }
 
 function downloadAdvancedChartImages() {
@@ -4665,6 +5220,14 @@ $("exportReportBtn").addEventListener("click", exportCompleteReport);
 $("generatePdfReportBtn")?.addEventListener("click", generateAdvancedPdfReport);
 $("exportAdvancedDataBtn")?.addEventListener("click", exportAdvancedDataCsv);
 $("downloadChartImagesBtn")?.addEventListener("click", downloadAdvancedChartImages);
+$("generateReportPreviewBtn")?.addEventListener("click", () => {
+  activateProfileRoadmapTab("reports");
+  renderConsumptionProfile();
+});
+$("previewReportBtn")?.addEventListener("click", () => {
+  renderConsumptionProfile();
+  setMessages(["Preview raport actualizat cu datele disponibile."]);
+});
 $("activeScenario").addEventListener("change", (event) => renderScenario(event.target.value, { persist: true }));
 $("monthlyScenario").addEventListener("change", (event) => renderScenario(event.target.value, { persist: true }));
 $("scenarioTabs").addEventListener("click", (event) => {
@@ -4704,32 +5267,33 @@ window.addEventListener("resize", () => {
   }, 120);
 });
 updateProfileRoadmapLayout("client");
-$("profileRoadmapTabs").addEventListener("click", (event) => {
-  const simulatorButton = event.target.closest("button[data-open-simulator]");
-  if (simulatorButton) {
-    document.querySelectorAll("#profileRoadmapTabs button").forEach((item) => {
-      item.classList.toggle("active", item === simulatorButton);
-    });
-    setAppView("simulator");
-    return;
-  }
-  const button = event.target.closest("button[data-roadmap-tab]");
-  if (!button) return;
-  const tab = button.dataset.roadmapTab;
+function activateProfileRoadmapTab(tab = "client") {
+  const panelTab = tab === "reports" ? "advanced" : tab;
+  setAppView("profile");
   updateProfileRoadmapLayout(tab);
-  document.querySelectorAll("#profileRoadmapTabs button").forEach((item) => {
-    item.classList.toggle("active", item === button);
+  document.querySelectorAll("button[data-roadmap-tab]").forEach((item) => {
+    item.classList.toggle("active", item.dataset.roadmapTab === tab);
   });
   document.querySelectorAll(".profile-roadmap-tab").forEach((panel) => {
-    panel.classList.toggle("is-active", panel.dataset.roadmapPanel === tab);
+    panel.classList.toggle("is-active", panel.dataset.roadmapPanel === panelTab);
   });
-  if (tab === "procurement" || tab === "advanced") {
+  if (tab === "procurement" || panelTab === "advanced") {
     window.requestAnimationFrame(() => {
       if (tab === "procurement" && state.procurementDna) drawProcurementDnaCharts(state.procurementDna);
-      else if (tab === "advanced" && state.advancedReport) drawAdvancedReportCharts(state.advancedReport);
+      else if (panelTab === "advanced" && state.advancedReport) drawAdvancedReportCharts(state.advancedReport);
       else renderConsumptionProfile();
     });
   }
+}
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-roadmap-tab]");
+  if (!button) return;
+  activateProfileRoadmapTab(button.dataset.roadmapTab);
+});
+document.addEventListener("click", (event) => {
+  const simulatorButton = event.target.closest("button[data-open-simulator]");
+  if (!simulatorButton) return;
+  setAppView("simulator");
 });
 PROFILE_CONTRACT_FIELD_IDS.forEach((id) => {
   const element = $(id);
@@ -4796,9 +5360,16 @@ $("curveTable").addEventListener("paste", (event) => {
 });
 $("priceYear").addEventListener("change", () => {
   syncPriceImportVisibility();
+  updateTopbarContext();
   renderCurveTable();
   scheduleSaveProjectDraft();
   refreshChecksFromCurrentInputs();
+});
+$("topDateRange")?.addEventListener("change", (event) => {
+  const priceYear = $("priceYear");
+  if (!priceYear) return;
+  priceYear.value = event.target.value || "2025";
+  priceYear.dispatchEvent(new Event("change", { bubbles: true }));
 });
 $("newProjectBtn").addEventListener("click", () => {
   saveDraftToActiveProject();
