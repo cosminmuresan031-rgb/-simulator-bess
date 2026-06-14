@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Sequence
 
 from openpyxl import Workbook
-from openpyxl.chart import BarChart, Reference
+from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.formatting.rule import DataBarRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -482,6 +482,156 @@ def create_scenario_sheet(wb: Workbook, scenario: Dict[str, Any], title: str = "
         ws.cell(row_index, 11).font = Font(bold=True, color=TEXT)
 
 
+def create_procurement_dna_sheet(wb: Workbook, dna: Dict[str, Any]) -> None:
+    if not dna:
+        return
+    ws = wb.create_sheet("Procurement DNA")
+    ws.sheet_view.showGridLines = False
+    ws.freeze_panes = "A12"
+    set_widths(ws, {"A": 28, "B": 20, "C": 20, "D": 20, "E": 20, "F": 20, "G": 22, "H": 4, "I": 18, "J": 18, "K": 18})
+
+    ws.merge_cells("A1:G1")
+    ws["A1"] = "PROCUREMENT DNA"
+    style_title(ws["A1"])
+    ws.row_dimensions[1].height = 28
+
+    load_dna = dna.get("loadDna") or {}
+    cost_dna = dna.get("costDna") or {}
+    summary_rows = [
+        ["Procurement DNA", safe_text(dna.get("finalOutput") or "-")],
+        ["Confidence Score", as_float(dna.get("confidenceScore"))],
+        ["Risk Gauge", as_float(dna.get("riskScore"))],
+        ["Recomandare contract", safe_text(dna.get("contractRecommendation") or "-")],
+        ["Risk Level", safe_text(dna.get("riskLevel") or "-")],
+        ["Ore valide consum", as_float(dna.get("validConsumptionHours"))],
+    ]
+    ws.merge_cells("A3:G3")
+    ws["A3"] = "Executive DNA Summary"
+    style_section(ws["A3"])
+    write_rows(ws, 4, ["Indicator", "Rezultat"], summary_rows)
+
+    risk_rows = [
+        ["Forecastability Score", as_float(dna.get("forecastabilityScore"))],
+        ["Seasonality Score", as_float(dna.get("seasonalityScore"))],
+        ["Volatility Score", as_float(dna.get("volatilityScore"))],
+        ["Peak Risk Score", as_float(dna.get("peakRiskScore"))],
+        ["Risk Gauge Total", as_float(dna.get("riskScore"))],
+    ]
+    ws.merge_cells("D4:G4")
+    ws["D4"] = "Risk DNA"
+    style_section(ws["D4"])
+    for row_offset, values in enumerate(risk_rows, start=5):
+        ws.cell(row_offset, 4, values[0])
+        ws.cell(row_offset, 5, values[1])
+    style_table(ws, 5, 4 + len(risk_rows), 4, 5)
+
+    load_rows = [
+        ["Baseload MW", as_float(load_dna.get("baseloadMw"))],
+        ["Midload MW", as_float(load_dna.get("midloadMw"))],
+        ["Peakload MW", as_float(load_dna.get("peakloadMw"))],
+        ["Peak/Base Ratio", as_float(load_dna.get("peakBaseRatio"))],
+        ["Interpretare", safe_text(load_dna.get("label") or "-")],
+    ]
+    ws.merge_cells("A13:G13")
+    ws["A13"] = "Load DNA"
+    style_section(ws["A13"])
+    load_end = write_rows(ws, 14, ["Indicator", "Rezultat"], load_rows)
+
+    cost_rows = [
+        ["Total Cost PZU", as_float(cost_dna.get("totalCost"))],
+        ["Cost Concentration Index", as_float(cost_dna.get("concentrationIndex"))],
+        ["Top 100 Hours Share", as_float(cost_dna.get("top100Share"))],
+        ["Expensive Hours Cost Share", as_float(cost_dna.get("expensiveCostShare"))],
+        ["Cheap Hours Cost Share", as_float(cost_dna.get("cheapCostShare"))],
+    ]
+    ws.merge_cells("D14:G14")
+    ws["D14"] = "Cost DNA"
+    style_section(ws["D14"])
+    for row_offset, values in enumerate(cost_rows, start=15):
+        ws.cell(row_offset, 4, values[0])
+        ws.cell(row_offset, 5, values[1])
+    style_table(ws, 15, 14 + len(cost_rows), 4, 5)
+
+    report_row = load_end + 3
+    ws.merge_cells(start_row=report_row, start_column=1, end_row=report_row, end_column=7)
+    ws.cell(report_row, 1, "Interpretare automata profesionala")
+    style_section(ws.cell(report_row, 1))
+    ws.merge_cells(start_row=report_row + 1, start_column=1, end_row=report_row + 4, end_column=7)
+    report_cell = ws.cell(report_row + 1, 1, safe_text(dna.get("reportText") or ""))
+    report_cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    ldc_rows = [
+        [as_float(row.get("hour")), as_float(row.get("value"))]
+        for row in (load_dna.get("points") or [])
+    ]
+    ldc_start = report_row + 7
+    ws.merge_cells(start_row=ldc_start, start_column=1, end_row=ldc_start, end_column=3)
+    ws.cell(ldc_start, 1, "Load Duration Curve")
+    style_section(ws.cell(ldc_start, 1))
+    ldc_end = write_rows(ws, ldc_start + 1, ["Ora sortata", "Consum MW"], ldc_rows)
+    if ldc_rows:
+        chart = LineChart()
+        chart.style = 10
+        chart.title = "Load Duration Curve"
+        chart.y_axis.title = "MW"
+        chart.x_axis.title = "Ore sortate"
+        data = Reference(ws, min_col=2, min_row=ldc_start + 1, max_row=ldc_end)
+        cats = Reference(ws, min_col=1, min_row=ldc_start + 2, max_row=ldc_end)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        chart.height = 7
+        chart.width = 14
+        ws.add_chart(chart, f"D{ldc_start + 1}")
+
+    top_rows = [
+        [
+            safe_text(row.get("timestamp") or ""),
+            as_float(row.get("consumption")),
+            as_float(row.get("price")),
+            as_float(row.get("cost")),
+        ]
+        for row in (cost_dna.get("top10") or [])
+    ]
+    top_start = ldc_end + 3
+    ws.merge_cells(start_row=top_start, start_column=1, end_row=top_start, end_column=4)
+    ws.cell(top_start, 1, "Top 10 Cost Hours")
+    style_section(ws.cell(top_start, 1))
+    top_end = write_rows(ws, top_start + 1, ["Ora", "Consum MWh", "Pret PZU", "Cost lei"], top_rows)
+    if top_rows:
+        chart = BarChart()
+        chart.type = "bar"
+        chart.style = 10
+        chart.title = "Top 10 Cost Hours"
+        chart.x_axis.title = "lei"
+        data = Reference(ws, min_col=4, min_row=top_start + 1, max_row=top_end)
+        cats = Reference(ws, min_col=1, min_row=top_start + 2, max_row=top_end)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        chart.height = 7
+        chart.width = 14
+        ws.add_chart(chart, f"F{top_start + 1}")
+
+    distribution_rows = [[safe_text(row.get("label") or ""), as_float(row.get("value"))] for row in (cost_dna.get("distribution") or [])]
+    distribution_start = top_end + 3
+    ws.merge_cells(start_row=distribution_start, start_column=1, end_row=distribution_start, end_column=3)
+    ws.cell(distribution_start, 1, "Cost Distribution")
+    style_section(ws.cell(distribution_start, 1))
+    distribution_end = write_rows(ws, distribution_start + 1, ["Categorie", "Cost lei"], distribution_rows)
+    if distribution_rows:
+        chart = BarChart()
+        chart.type = "col"
+        chart.style = 10
+        chart.title = "Cost Distribution"
+        chart.y_axis.title = "lei"
+        data = Reference(ws, min_col=2, min_row=distribution_start + 1, max_row=distribution_end)
+        cats = Reference(ws, min_col=1, min_row=distribution_start + 2, max_row=distribution_end)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        chart.height = 7
+        chart.width = 14
+        ws.add_chart(chart, f"D{distribution_start + 1}")
+
+
 def assert_no_formulas(wb: Workbook) -> None:
     formulas: List[str] = []
     for ws in wb.worksheets:
@@ -503,6 +653,7 @@ def generate_complete_report_xlsx(payload: Dict[str, Any]) -> bytes:
     dashboard = payload.get("dashboard") or {}
     summary = payload.get("financialSummary") or {}
     scenario = payload.get("scenario") or {}
+    procurement_dna = payload.get("procurementDna") or {}
     project_name = str(payload.get("projectName") or "Proiect BESS")
 
     if not dashboard:
@@ -520,6 +671,7 @@ def generate_complete_report_xlsx(payload: Dict[str, Any]) -> bytes:
 
     create_dashboard_sheet(wb, dashboard, project_name)
     create_financial_sheet(wb, summary)
+    create_procurement_dna_sheet(wb, procurement_dna)
     existing_titles = {ws.title for ws in wb.worksheets}
     create_scenario_sheet(wb, scenario, safe_sheet_title("Scenariu selectat", "Scenariu selectat", existing_titles))
 

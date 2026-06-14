@@ -31,7 +31,6 @@
       <section class="topbar">
         <nav class="main-menu" aria-label="Meniu principal">
           <button id="navConsumptionProfile" class="main-menu-item active" type="button" data-app-view="profile">Profil de consum</button>
-          <button id="navSimulator" class="main-menu-item" type="button" data-app-view="simulator">SIMULATOR BESS</button>
         </nav>
         <div class="topbar-actions">
           <div class="user-menu">
@@ -316,11 +315,362 @@
       <section id="messages" class="messages"></section>
       </section>
 
-      <section id="consumptionProfileView" class="app-view profile-view">
+      <section id="consumptionProfileView" class="app-view profile-view" data-roadmap-tab="client">
+        <section class="panel profile-roadmap-panel">
+          <div class="section-head">
+            <div>
+              <h2 id="profileRoadmapTitle">1. Date client</h2>
+              <p>Profilare consum industrial pentru sourcing, eficientizare si raport.</p>
+            </div>
+            <span id="profileContractStatusChip" class="status-chip warn">Date client</span>
+          </div>
+          <div class="profile-roadmap-tabs" id="profileRoadmapTabs" role="tablist" aria-label="Roadmap profilare consum">
+            <button class="active" type="button" data-roadmap-tab="client">Date contractuale</button>
+            <button type="button" data-roadmap-tab="sourcing">Contract furnizare</button>
+            <button type="button" data-roadmap-tab="procurement">Procurement DNA</button>
+            <button type="button" data-roadmap-tab="efficiency">Eficientizare</button>
+            <button type="button" data-roadmap-tab="advanced">Diagrame si raport</button>
+            <button type="button" data-open-simulator="true">SIMULATOR BESS</button>
+          </div>
+
+          <div class="profile-roadmap-tab is-active" data-roadmap-panel="client">
+            <div class="contract-grid">
+              <label>Nume client <input id="profileClientName" type="text" placeholder="Client" /></label>
+              <label>CUI <input id="profileCui" type="text" placeholder="RO..." /></label>
+              <label>
+                Judet / localitate
+                <input id="profileCounty" type="text" placeholder="Scrie judetul sau localitatea" />
+              </label>
+              <label>
+                Distribuitor
+                <select id="profileDistributor">
+                  <option value="">Selecteaza</option>
+                  <option>Distributie Energie Electrica Romania</option>
+                  <option>Delgaz Grid</option>
+                  <option>Distributie Energie Oltenia</option>
+                  <option>Retele Electrice Muntenia</option>
+                  <option>Retele Electrice Dobrogea</option>
+                  <option>Retele Electrice Banat</option>
+                  <option>Alt distribuitor</option>
+                </select>
+              </label>
+              <label>
+                Tensiune alimentare
+                <select id="profileVoltage">
+                  <option value="JT">JT</option>
+                  <option value="MT">MT</option>
+                  <option value="IT">IT</option>
+                </select>
+              </label>
+              <label>ATR profilare kW <input id="profileAtrKw" type="number" step="1" value="0" /></label>
+              <label>Putere aprobata kW <input id="profileApprovedPowerKw" type="number" step="1" value="0" /></label>
+              <label>Putere rezervata kW <input id="profileReservedPowerKw" type="number" step="1" value="0" /></label>
+              <label>
+                Contract actual
+                <select id="profileCurrentContract">
+                  <option value="">Selecteaza</option>
+                  <option>Pret fix</option>
+                  <option>PZU orar</option>
+                  <option>Banda + PZU</option>
+                  <option>Forward / hedging</option>
+                </select>
+              </label>
+              <label>
+                Prosumator
+                <select id="profileProsumer">
+                  <option value="Nu">Nu</option>
+                  <option value="Da">Da</option>
+                </select>
+              </label>
+              <label>
+                PV existent
+                <select id="profileExistingPv">
+                  <option value="Nu">Nu</option>
+                  <option value="Da">Da</option>
+                </select>
+              </label>
+              <label>Putere PV kWp <input id="profilePvKwp" type="number" step="1" value="0" /></label>
+              <label>Cost energie reactiva anual <input id="profileReactiveCostLei" type="number" step="1" value="0" /></label>
+            </div>
+          </div>
+
+          <div class="profile-roadmap-tab" data-roadmap-panel="sourcing">
+            <div class="roadmap-kpi-grid">
+              <div class="roadmap-kpi">
+                <span>PMP PZU Client</span>
+                <strong id="profileKpiPmpPzu">0,00</strong>
+                <small>PMP anual ponderat cu consumul</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Load Factor</span>
+                <strong id="profileKpiLoadFactor">0%</strong>
+                <small id="profileKpiLoadFactorLabel">Profil in asteptare</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Forecastability Score</span>
+                <strong id="profileKpiForecastability">0%</strong>
+                <small>Repetitivitate si volatilitate</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Spot Market Fit</span>
+                <strong id="profileKpiSpotFit">0%</strong>
+                <small>Consum in ore ieftine vs scumpe</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Hedging Score</span>
+                <strong id="profileKpiHedging">0%</strong>
+                <small>Acoperire forward posibila</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Seasonality Score</span>
+                <strong id="profileKpiSeasonality">0%</strong>
+                <small>Stabilitate intre luni</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-roadmap-tab procurement-dna-tab" data-roadmap-panel="procurement">
+            <div class="procurement-section">
+              <h3>Executive DNA Summary</h3>
+              <div class="procurement-card-grid procurement-summary-grid">
+                <div class="procurement-card procurement-card-wide">
+                  <span>Procurement DNA</span>
+                  <strong id="procurementDnaLabel">Profil in asteptare</strong>
+                  <small id="procurementDnaSubtext">Profil operational, strategie achizitie si oportunitate energetica</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Confidence Score</span>
+                  <strong id="procurementConfidence">0%</strong>
+                  <small id="procurementConfidenceLabel">Nivel de incredere in clasificare</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Risk Gauge</span>
+                  <strong id="procurementRiskGauge">0 / 100</strong>
+                  <small id="procurementRiskLabel">Risc in asteptare</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Recomandare Contract</span>
+                  <strong id="procurementContractRecommendation">Introdu curbe</strong>
+                  <small id="procurementContractRecommendationSubtext">Strategie contractuala recomandata</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="procurement-section">
+              <h3>Risk DNA</h3>
+              <div class="procurement-card-grid">
+                <div class="procurement-card">
+                  <span>Forecastability</span>
+                  <strong id="riskDnaForecastability">0%</strong>
+                  <small>Predictibilitate consum</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Seasonality</span>
+                  <strong id="riskDnaSeasonality">0%</strong>
+                  <small>Variatie lunara</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Volatility</span>
+                  <strong id="riskDnaVolatility">0%</strong>
+                  <small>Variatie orara</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Peak Risk</span>
+                  <strong id="riskDnaPeakRisk">N/A</strong>
+                  <small>Din Peak/Base Ratio</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Risk Gauge Total</span>
+                  <strong id="riskDnaGaugeTotal">0%</strong>
+                  <small id="riskDnaGaugeLabel">Risc in asteptare</small>
+                </div>
+              </div>
+              <p id="riskDnaInterpretation" class="procurement-interpretation-text">Curba orara de consum este necesara pentru generarea Procurement DNA.</p>
+            </div>
+
+            <div class="procurement-section load-dna-section">
+              <h3>Load DNA</h3>
+              <canvas id="procurementLoadDurationChart" class="chart-canvas procurement-chart procurement-chart-wide" width="1120" height="360"></canvas>
+              <p id="loadDnaInterpretation" class="procurement-interpretation-text">Curba orara de consum este necesara pentru generarea Load DNA.</p>
+              <div class="procurement-card-grid">
+                <div class="procurement-card">
+                  <span>Baseload MW</span>
+                  <strong id="procurementBaseload">N/A</strong>
+                  <small>Consum minim permanent</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Midload MW</span>
+                  <strong id="procurementMidload">N/A</strong>
+                  <small>Consum median</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Peakload MW</span>
+                  <strong id="procurementPeakload">N/A</strong>
+                  <small>Varf maxim consum</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Peak/Base Ratio</span>
+                  <strong id="procurementPeakBaseRatio">N/A</strong>
+                  <small id="procurementPeakBaseLabel">Stabilitatea profilului</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="procurement-section">
+              <h3>Cost DNA</h3>
+              <div class="procurement-card-grid">
+                <div class="procurement-card">
+                  <span>Total Cost PZU</span>
+                  <strong id="procurementTotalCost">Indisponibil</strong>
+                  <small>Consum orar x pret PZU</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Cost Concentration Index</span>
+                  <strong id="procurementCostConcentration">Indisponibil</strong>
+                  <small id="procurementCostConcentrationLabel">Concentrare cost</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Top 100 Share</span>
+                  <strong id="procurementTop100Share">Indisponibil</strong>
+                  <small>Pondere top 100 ore cost</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Expensive Hours Cost Share</span>
+                  <strong id="procurementExpensiveCostShare">Indisponibil</strong>
+                  <small>Top 20% ore dupa PZU</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Cheap Hours Cost Share</span>
+                  <strong id="procurementCheapCostShare">Indisponibil</strong>
+                  <small>Bottom 20% ore dupa PZU</small>
+                </div>
+              </div>
+              <p id="costDnaInterpretation" class="procurement-interpretation-text">Cost DNA se activeaza dupa ce exista consum orar si preturi PZU.</p>
+            </div>
+
+            <div class="procurement-section procurement-chart-section">
+              <h3>Diagrame Cost DNA</h3>
+              <div class="procurement-chart-grid">
+                <canvas id="procurementTopCostChart" class="chart-canvas procurement-chart" width="560" height="360"></canvas>
+                <canvas id="procurementCostDistributionChart" class="chart-canvas procurement-chart" width="560" height="320"></canvas>
+              </div>
+            </div>
+
+            <div class="procurement-section">
+              <h3>Interpretare automata</h3>
+              <div class="procurement-card procurement-card-wide procurement-report-card">
+                <span>Raport profesional</span>
+                <strong id="procurementFinalOutput">Profil mixt | High Risk Profile | No Immediate Opportunity</strong>
+                <small id="procurementReportText">Curba orara de consum este necesara pentru generarea Procurement DNA.</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-roadmap-tab" data-roadmap-panel="efficiency">
+            <div class="roadmap-kpi-grid">
+              <div class="roadmap-kpi">
+                <span>Solar Fit Score</span>
+                <strong id="profileKpiSolarFit">0%</strong>
+                <small>Consum 08:00 - 18:00</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Storage Fit Score</span>
+                <strong id="profileKpiStorageFit">0%</strong>
+                <small>Spread PZU si consum seara</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>JT -> MT Opportunity</span>
+                <strong id="profileKpiJtMt">0%</strong>
+                <small id="profileKpiJtMtLabel">In asteptare</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>ATR Optimization</span>
+                <strong id="profileKpiAtrOptimization">0%</strong>
+                <small id="profileKpiAtrLabel">ATR profilare separat</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Reactive Energy</span>
+                <strong id="profileKpiReactive">0%</strong>
+                <small id="profileKpiReactiveLabel">Fara cost introdus</small>
+              </div>
+              <div class="roadmap-kpi">
+                <span>Energy Opportunity Score</span>
+                <strong id="profileKpiEnergyOpportunity">0%</strong>
+                <small>Contract + PZU + PV + BESS + ATR</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-roadmap-tab" data-roadmap-panel="advanced">
+            <div class="advanced-report-panel">
+              <div class="advanced-report-head">
+                <div>
+                  <h3>Diagrame si raport client</h3>
+                  <p id="advancedReportStatus">Curba orara de consum este necesara pentru generarea diagramelor.</p>
+                </div>
+                <div class="advanced-report-actions">
+                  <button id="generatePdfReportBtn" class="primary" type="button">Genereaza raport PDF</button>
+                  <button id="exportAdvancedDataBtn" class="secondary" type="button">Export date Excel</button>
+                  <button id="downloadChartImagesBtn" class="secondary" type="button">Descarca imagini diagrame</button>
+                </div>
+              </div>
+
+              <div class="advanced-kpi-grid">
+                <div class="advanced-kpi"><span>Consum anual</span><strong id="reportAnnualConsumption">0,00</strong><small>MWh</small></div>
+                <div class="advanced-kpi"><span>PMP Client</span><strong id="reportPmpClient">0,00</strong><small>lei/MWh</small></div>
+                <div class="advanced-kpi"><span>Media PZU</span><strong id="reportPzuAverage">0,00</strong><small>lei/MWh</small></div>
+                <div class="advanced-kpi"><span>Cost Concentration</span><strong id="reportCostConcentration">Indisponibil</strong><small>index</small></div>
+                <div class="advanced-kpi"><span>Solar Fit</span><strong id="reportSolarFit">0%</strong><small>08:00-18:00</small></div>
+                <div class="advanced-kpi"><span>Storage Fit</span><strong id="reportStorageFit">0%</strong><small>ore scumpe + seara</small></div>
+              </div>
+
+              <section class="advanced-report-section" id="advancedConsumptionSection">
+                <h3>1. Profil consum</h3>
+                <div class="advanced-chart-grid">
+                  <canvas id="reportConsumptionHeatmap" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="360"></canvas>
+                  <canvas id="reportDailyCurveChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
+                  <canvas id="reportIntervalChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
+                </div>
+                <p id="reportConsumptionText" class="advanced-report-text">Profilul mediu zilnic se genereaza dupa introducerea curbei orare de consum.</p>
+              </section>
+
+              <section class="advanced-report-section" id="advancedMarketSection">
+                <h3>2. Profil piata / PZU</h3>
+                <div class="advanced-chart-grid">
+                  <canvas id="reportPzuHeatmap" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="360"></canvas>
+                  <canvas id="reportConsumptionPriceScatter" class="chart-canvas advanced-chart" width="560" height="340"></canvas>
+                  <canvas id="reportPmpVsAverageChart" class="chart-canvas advanced-chart" width="560" height="340"></canvas>
+                </div>
+                <p id="reportMarketText" class="advanced-report-text">Preturile PZU sunt necesare pentru analiza costului si profilului de piata.</p>
+              </section>
+
+              <section class="advanced-report-section" id="advancedCostSection">
+                <h3>3. Profil cost</h3>
+                <div class="advanced-chart-grid">
+                  <canvas id="reportCostDistributionChart" class="chart-canvas advanced-chart" width="560" height="330"></canvas>
+                  <canvas id="reportTopCostHoursChart" class="chart-canvas advanced-chart" width="560" height="360"></canvas>
+                  <canvas id="reportMonthlyCostChart" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="340"></canvas>
+                </div>
+                <p id="reportCostText" class="advanced-report-text">Cost DNA se activeaza dupa ce exista consum orar si preturi PZU.</p>
+              </section>
+
+              <section class="advanced-report-section" id="advancedOpportunitySection">
+                <h3>4. Oportunitati client</h3>
+                <div class="advanced-chart-grid">
+                  <canvas id="reportSolarOpportunityChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
+                  <canvas id="reportStorageOpportunityChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
+                  <canvas id="reportPeakShavingChart" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="320"></canvas>
+                </div>
+                <p id="reportOpportunityText" class="advanced-report-text">Oportunitatile se calculeaza automat din profilul de consum, preturi PZU si Procurement DNA.</p>
+              </section>
+            </div>
+          </div>
+        </section>
+
         <section class="panel curve-entry-panel">
           <div class="section-head curve-head">
             <div>
-              <h2>Introducere lunara curbe</h2>
+              <h2>2. Curbe de consum</h2>
               <strong id="curveMonthTitle">Ianuarie 2025</strong>
             </div>
             <div class="curve-tools">
@@ -342,7 +692,7 @@
 
         <section class="panel checks-panel">
           <div class="section-head">
-            <h2>Verificari curbe si consolidare</h2>
+            <h2>3. Validare curbe de consum</h2>
             <span id="overallCheck" class="status-chip warn">In asteptare</span>
           </div>
           <div class="check-summary" id="checkSummary"></div>
@@ -365,75 +715,155 @@
           </div>
         </section>
 
-        <section class="panel profile-panel">
+        <section class="panel executive-panel">
           <div class="section-head">
             <div>
-              <h2>Profil de consum</h2>
-              <p id="profileStatus">Consum introdus: 0 ore</p>
+              <h2 id="executivePanelTitle">4. Dashboard Executive</h2>
+              <p id="executiveStatus">Sourcing client</p>
             </div>
-            <span id="profileYear" class="status-chip ok">2025</span>
+            <span id="executiveRiskChip" class="status-chip warn">Risc sourcing</span>
           </div>
-          <canvas id="sourcingProfileChart" class="chart-canvas sourcing-profile-chart" width="1200" height="360"></canvas>
-          <div class="profile-summary">
-            <div>
-              <span>Consum anual</span>
-              <strong id="profileAnnualConsumption">0.00</strong>
+          <div class="executive-grid">
+            <div class="executive-card">
+              <span>Consum anual MWh</span>
+              <strong id="executiveAnnualConsumption">0,00</strong>
             </div>
-            <div>
-              <span>Consum zi</span>
-              <strong id="profileDayConsumption">0.00</strong>
+            <div class="executive-card">
+              <span>PMP PZU estimat</span>
+              <strong id="executivePmpPzu">0,00</strong>
             </div>
-            <div>
-              <span>Consum noapte</span>
-              <strong id="profileNightConsumption">0.00</strong>
+            <div class="executive-card">
+              <span>Varf MW</span>
+              <strong id="executivePeak">0,00</strong>
             </div>
-            <div>
-              <span>PV anual</span>
-              <strong id="profileAnnualPv">0.00</strong>
-            </div>
-            <div>
-              <span>Varf consum MW</span>
-              <strong id="profilePeakConsumption">0.00</strong>
-            </div>
-            <div>
+            <div class="executive-card">
               <span>Medie orara MW</span>
-              <strong id="profileAverageConsumption">0.00</strong>
+              <strong id="executiveAverage">0,00</strong>
+            </div>
+            <div class="executive-card">
+              <span>Load factor</span>
+              <strong id="executiveLoadFactor">0%</strong>
+            </div>
+            <div class="executive-card">
+              <span>Consum zi/noapte</span>
+              <strong id="executiveDayNight">0% / 0%</strong>
+            </div>
+            <div class="executive-card">
+              <span>Scor risc sourcing</span>
+              <strong id="executiveRiskScore">0%</strong>
+            </div>
+            <div class="executive-card executive-card-wide">
+              <span>Recomandare contract furnizare</span>
+              <strong id="executiveRecommendation">Introdu curbe</strong>
+            </div>
+            <div class="executive-card executive-card-wide">
+              <span>Recomandare eficientizare</span>
+              <strong id="executiveEfficiencyRecommendation">Introdu curbe</strong>
             </div>
           </div>
-          <canvas id="profileChart" class="chart-canvas profile-chart" width="900" height="280"></canvas>
-          <div class="profile-table-wrap">
-            <table class="profile-table">
-              <thead>
-                <tr>
-                  <th>Luna</th>
-                  <th>Consum MWh</th>
-                  <th>Consum zi MWh</th>
-                  <th>Consum noapte MWh</th>
-                  <th>PV MWh</th>
-                  <th>Varf MW</th>
-                </tr>
-              </thead>
-              <tbody id="profileMonthlyRows"></tbody>
-            </table>
+          <div class="roadmap-flow" aria-label="Flux profilare consum">
+            <span data-roadmap-step="client">Date client</span>
+            <span data-roadmap-step="validation">Validare curbe</span>
+            <span data-roadmap-step="pzu">Profil PZU</span>
+            <span data-roadmap-step="scoring">Scoring</span>
+            <span data-roadmap-step="recommendation">Recomandari</span>
+            <span data-roadmap-step="export">Export</span>
           </div>
-          <div class="cef-profile-block">
-            <h3>PROFILARE CEF</h3>
+        </section>
+
+        <section class="panel analytics-panel">
+          <div class="section-head">
+            <div>
+              <h2 id="analyticsPanelTitle">5. Date generate sourcing</h2>
+              <p id="analyticsStatus">Datele se genereaza din curbe consolidate.</p>
+            </div>
+            <span id="analyticsSourceChip" class="status-chip warn">In asteptare</span>
+          </div>
+          <div class="analytics-grid">
+            <div class="analytics-card">
+              <span>PMP PZU client</span>
+              <strong id="analyticsPmpAnnual">0,00</strong>
+            </div>
+            <div class="analytics-card">
+              <span>Media PZU simpla</span>
+              <strong id="analyticsSimplePzu">0,00</strong>
+            </div>
+            <div class="analytics-card">
+              <span>Diferenta profil</span>
+              <strong id="analyticsProfileDiff">0,00</strong>
+            </div>
+            <div class="analytics-card">
+              <span>Consum ore scumpe</span>
+              <strong id="analyticsExpensiveMwh">0,00</strong>
+            </div>
+            <div class="analytics-card">
+              <span>Consum ore ieftine</span>
+              <strong id="analyticsCheapMwh">0,00</strong>
+            </div>
+            <div class="analytics-card">
+              <span>Weekday / weekend</span>
+              <strong id="analyticsWeekdayWeekend">0% / 0%</strong>
+            </div>
+            <div class="analytics-card">
+              <span>PV Fit Score</span>
+              <strong id="analyticsPvFit">0%</strong>
+            </div>
+            <div class="analytics-card">
+              <span>BESS Fit Score</span>
+              <strong id="analyticsBessFit">0%</strong>
+            </div>
+          </div>
+          <div class="analytics-layout">
+            <div class="analytics-block">
+              <h3>Profil PZU anual</h3>
+              <table class="analytics-table compact-data-table">
+                <tbody id="analyticsAnnualRows"></tbody>
+              </table>
+            </div>
+            <div class="analytics-block">
+              <h3>Scoruri sourcing</h3>
+              <table class="analytics-table compact-data-table">
+                <tbody id="analyticsScoreRows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="analytics-block analytics-monthly-block">
+            <h3>Profil PZU lunar</h3>
             <div class="profile-table-wrap">
-              <table class="profile-table cef-profile-table">
+              <table class="analytics-table profile-pzu-table">
                 <thead>
                   <tr>
-                    <th>Profil</th>
-                    <th>Perioada</th>
-                    <th>Interval orar</th>
-                    <th>Ore asteptate</th>
-                    <th>Ore completate</th>
-                    <th>Total MWh</th>
-                    <th>Medie MW</th>
-                    <th>Varf MW</th>
-                    <th>Pondere</th>
+                    <th>Luna</th>
+                    <th>Consum MWh</th>
+                    <th>PV MWh</th>
+                    <th>PMP PZU</th>
+                    <th>Media PZU</th>
+                    <th>Diferenta profil</th>
+                    <th>Ore scumpe MWh</th>
+                    <th>Ore ieftine MWh</th>
+                    <th>Weekday MWh</th>
+                    <th>Weekend MWh</th>
                   </tr>
                 </thead>
-                <tbody id="cefProfileRows"></tbody>
+                <tbody id="analyticsMonthlyRows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="analytics-block analytics-hourly-block">
+            <h3>Profil mediu orar</h3>
+            <div class="profile-table-wrap">
+              <table class="analytics-table hourly-profile-table">
+                <thead>
+                  <tr>
+                    <th>Ora</th>
+                    <th>Consum MWh</th>
+                    <th>Consum mediu MW</th>
+                    <th>PV MWh</th>
+                    <th>PV mediu MW</th>
+                    <th>Pret PZU mediu</th>
+                  </tr>
+                </thead>
+                <tbody id="analyticsHourlyRows"></tbody>
               </table>
             </div>
           </div>

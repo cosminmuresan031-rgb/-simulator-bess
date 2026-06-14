@@ -13,6 +13,10 @@ const state = {
   },
   priceCache: {},
   priceSource: "2025 implicit",
+  lastProfileRows: [],
+  profileAnalytics: null,
+  procurementDna: null,
+  advancedReport: null,
   projects: [],
   activeProjectId: null,
   isApplyingProject: false,
@@ -37,39 +41,47 @@ const MONTHS = [
 
 const MONTH_SHORT = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const CEF_PROFILE_WINDOWS = [
-  {
-    label: "Profil consum 09:00 - 21:00",
-    period: "Martie - Septembrie",
-    interval: "09:00 - 21:00",
-    months: [2, 3, 4, 5, 6, 7, 8],
-    startHour: 9,
-    endHour: 21,
+const PROFILE_ROADMAP_LAYOUTS = {
+  client: {
+    profileTitle: "1. Date client",
+    executiveTitle: "4. Dashboard Executive",
+    analyticsTitle: "5. Date generate sourcing",
   },
-  {
-    label: "Profil consum 22:00 - 08:00",
-    period: "Martie - Septembrie",
-    interval: "22:00 - 08:00",
-    months: [2, 3, 4, 5, 6, 7, 8],
-    startHour: 22,
-    endHour: 8,
+  sourcing: {
+    profileTitle: "1. Contract furnizare",
+    executiveTitle: "2. Dashboard Executive",
+    analyticsTitle: "3. Date generate sourcing",
   },
-  {
-    label: "Profil consum 09:00 - 16:00",
-    period: "Octombrie - Februarie",
-    interval: "09:00 - 16:00",
-    months: [9, 10, 11, 0, 1],
-    startHour: 9,
-    endHour: 16,
+  procurement: {
+    profileTitle: "1. Procurement DNA",
+    executiveTitle: "2. Dashboard Executive",
+    analyticsTitle: "3. Date generate sourcing",
   },
-  {
-    label: "Profil consum 22:00 - 08:00",
-    period: "Octombrie - Februarie",
-    interval: "22:00 - 08:00",
-    months: [9, 10, 11, 0, 1],
-    startHour: 22,
-    endHour: 8,
+  efficiency: {
+    profileTitle: "1. Eficientizare",
+    executiveTitle: "2. Dashboard Executive",
+    analyticsTitle: "2. Profil mediu orar",
   },
+  advanced: {
+    profileTitle: "1. Diagrame si raport",
+    executiveTitle: "2. Dashboard Executive",
+    analyticsTitle: "3. Date generate sourcing",
+  },
+};
+const PROFILE_CONTRACT_FIELD_IDS = [
+  "profileClientName",
+  "profileCui",
+  "profileCounty",
+  "profileDistributor",
+  "profileVoltage",
+  "profileAtrKw",
+  "profileApprovedPowerKw",
+  "profileReservedPowerKw",
+  "profileCurrentContract",
+  "profileProsumer",
+  "profileExistingPv",
+  "profilePvKwp",
+  "profileReactiveCostLei",
 ];
 
 const numberFormat = new Intl.NumberFormat("ro-RO", {
@@ -103,6 +115,7 @@ function setAppView(view) {
   document.querySelectorAll(".main-menu-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.appView === state.activeAppView);
   });
+  document.querySelector('#profileRoadmapTabs button[data-open-simulator="true"]')?.classList.toggle("active", state.activeAppView === "simulator");
   if (state.activeAppView === "profile") renderConsumptionProfile();
 }
 
@@ -156,6 +169,59 @@ function defaultFinancialAssumptions() {
   };
 }
 
+function defaultProfileContract() {
+  return {
+    clientName: "",
+    cui: "",
+    county: "",
+    distributor: "",
+    voltage: "JT",
+    atrKw: 0,
+    approvedPowerKw: 0,
+    reservedPowerKw: 0,
+    currentContract: "",
+    prosumer: "Nu",
+    existingPv: "Nu",
+    pvKwp: 0,
+    reactiveCostLei: 0,
+  };
+}
+
+function profileContractData() {
+  return {
+    clientName: $("profileClientName")?.value.trim() || "",
+    cui: $("profileCui")?.value.trim() || "",
+    county: $("profileCounty")?.value.trim() || "",
+    distributor: $("profileDistributor")?.value || "",
+    voltage: $("profileVoltage")?.value || "JT",
+    atrKw: parseNumber($("profileAtrKw")?.value),
+    approvedPowerKw: parseNumber($("profileApprovedPowerKw")?.value),
+    reservedPowerKw: parseNumber($("profileReservedPowerKw")?.value),
+    currentContract: $("profileCurrentContract")?.value || "",
+    prosumer: $("profileProsumer")?.value || "Nu",
+    existingPv: $("profileExistingPv")?.value || "Nu",
+    pvKwp: parseNumber($("profilePvKwp")?.value),
+    reactiveCostLei: parseNumber($("profileReactiveCostLei")?.value),
+  };
+}
+
+function applyProfileContract(values = {}) {
+  const merged = { ...defaultProfileContract(), ...(values || {}) };
+  if ($("profileClientName")) $("profileClientName").value = merged.clientName || "";
+  if ($("profileCui")) $("profileCui").value = merged.cui || "";
+  if ($("profileCounty")) $("profileCounty").value = merged.county || "";
+  if ($("profileDistributor")) $("profileDistributor").value = merged.distributor || "";
+  if ($("profileVoltage")) $("profileVoltage").value = merged.voltage || "JT";
+  if ($("profileAtrKw")) $("profileAtrKw").value = merged.atrKw || 0;
+  if ($("profileApprovedPowerKw")) $("profileApprovedPowerKw").value = merged.approvedPowerKw || 0;
+  if ($("profileReservedPowerKw")) $("profileReservedPowerKw").value = merged.reservedPowerKw || 0;
+  if ($("profileCurrentContract")) $("profileCurrentContract").value = merged.currentContract || "";
+  if ($("profileProsumer")) $("profileProsumer").value = merged.prosumer || "Nu";
+  if ($("profileExistingPv")) $("profileExistingPv").value = merged.existingPv || "Nu";
+  if ($("profilePvKwp")) $("profilePvKwp").value = merged.pvKwp || 0;
+  if ($("profileReactiveCostLei")) $("profileReactiveCostLei").value = merged.reactiveCostLei || 0;
+}
+
 function financialAssumptions() {
   return {
     client: $("financialClient").value.trim(),
@@ -201,6 +267,19 @@ function formatLei(value) {
 
 function formatEuro(value) {
   return `${currencyFormat.format(Number(value) || 0)} euro`;
+}
+
+function formatPercent(value) {
+  return `${numberFormat.format(Number(value) || 0)}%`;
+}
+
+function formatMetric(value, suffix = "") {
+  const number = Number(value) || 0;
+  return `${numberFormat.format(number)}${suffix}`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, Number(value) || 0));
 }
 
 function daysBeforeMonth(monthIndex) {
@@ -910,6 +989,7 @@ function createProject(name = "Proiect nou") {
     activeSimulationId: null,
     savedPriceRows: null,
     savedPriceYear: null,
+    profileContract: defaultProfileContract(),
     financialAssumptions: defaultFinancialAssumptions(),
   };
 }
@@ -948,6 +1028,7 @@ function saveDraftToActiveProject() {
   project.params = params();
   project.scenarios = selectedScenarios();
   project.curves = clone(state.curves);
+  project.profileContract = profileContractData();
   project.financialAssumptions = financialAssumptions();
   persistProjects();
   renderProjectsMenu();
@@ -969,6 +1050,7 @@ function applyProject(project, options = {}) {
   $("priceYear").value = String(project.priceYear || 2025);
   applyParams(project.params);
   applyScenarioSelection(project.scenarios);
+  applyProfileContract(project.profileContract);
   applyFinancialAssumptions(project.financialAssumptions);
 
   const activeSimulation =
@@ -1051,6 +1133,7 @@ function saveSimulationToProject(result, priceRows) {
   project.params = params();
   project.scenarios = selectedScenarios();
   project.curves = clone(state.curves);
+  project.profileContract = profileContractData();
   project.financialAssumptions = financialAssumptions();
   if (project.priceYear !== 2025 && priceRows.length) {
     project.savedPriceRows = priceRows;
@@ -1124,6 +1207,7 @@ async function runSimulation() {
     const consumptionRows = [];
     const pvRows = [];
     const { rows, checks } = buildRowsForRun(consumptionRows, pvRows, priceRows);
+    state.lastProfileRows = rows;
     renderImportChecks(checks);
     const response = await fetch("/api/simulate", {
       method: "POST",
@@ -1147,7 +1231,9 @@ async function runSimulation() {
 async function refreshChecksFromCurrentInputs() {
   const priceRows = await getPriceRows();
   const { rows, checks } = buildRowsForRun([], [], priceRows);
+  state.lastProfileRows = rows;
   renderImportChecks(checks);
+  renderExecutiveDashboard(buildConsumptionProfile(), rows);
   return rows;
 }
 
@@ -1251,98 +1337,1199 @@ function buildConsumptionProfile() {
   return { monthly, daily, totals };
 }
 
-function buildCefProfileRows(totalConsumptionMwh) {
-  return CEF_PROFILE_WINDOWS.map((profile) => {
-    const row = {
-      ...profile,
-      expectedHours: 0,
-      enteredHours: 0,
-      totalMwh: 0,
-      averageMw: 0,
-      peakMw: 0,
-      sharePct: 0,
-    };
+function rowHour(row, fallbackIndex = 0) {
+  const hour = Number(String(row?.timestamp || "").slice(11, 13));
+  return Number.isFinite(hour) ? hour : fallbackIndex % 24;
+}
 
-    profile.months.forEach((monthIndex) => {
-      const consumption = monthValues("consumption", monthIndex);
-      const days = monthDays(monthIndex);
-      for (let dayIndex = 0; dayIndex < days; dayIndex += 1) {
-        for (let hour = 0; hour < 24; hour += 1) {
-          if (!hourInRange(hour, profile.startHour, profile.endHour)) continue;
-          const value = consumption[dayIndex]?.[hour] ?? "";
-          const consumptionMwh = parseNumber(value);
-          row.expectedHours += 1;
-          if (hasValue(value)) row.enteredHours += 1;
-          row.totalMwh += consumptionMwh;
-          row.peakMw = Math.max(row.peakMw, consumptionMwh);
-        }
+function rowDateParts(row, fallbackIndex = 0) {
+  const timestamp = String(row?.timestamp || "").trim();
+  const match = timestamp.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2})/);
+  if (match) {
+    return {
+      year: Number(match[1]),
+      monthIndex: Number(match[2]) - 1,
+      day: Number(match[3]),
+      hour: Number(match[4]),
+    };
+  }
+  const position = annualIndexToCurvePosition(fallbackIndex);
+  return {
+    year: selectedYear(),
+    monthIndex: position?.monthIndex ?? 0,
+    day: (position?.dayIndex ?? 0) + 1,
+    hour: position?.hour ?? fallbackIndex % 24,
+  };
+}
+
+function isWeekendRow(row, fallbackIndex = 0) {
+  const parts = rowDateParts(row, fallbackIndex);
+  const day = new Date(parts.year, parts.monthIndex, parts.day).getDay();
+  return day === 0 || day === 6;
+}
+
+function sumConsumption(rows, predicate = () => true) {
+  return rows.reduce((sum, row, index) => {
+    if (!predicate(row, index)) return sum;
+    return sum + (Number(row.consumption_mwh) || 0);
+  }, 0);
+}
+
+function average(values) {
+  const filtered = values.filter((value) => Number.isFinite(value));
+  if (!filtered.length) return 0;
+  return filtered.reduce((sum, value) => sum + value, 0) / filtered.length;
+}
+
+function weightedPzu(rows) {
+  const weightedConsumption = rows.reduce((sum, row) => sum + (Number(row.consumption_mwh) || 0), 0);
+  const weightedCost = rows.reduce(
+    (sum, row) => sum + (Number(row.consumption_mwh) || 0) * (Number(row.price_lei_mwh) || 0),
+    0,
+  );
+  return weightedConsumption > 0 ? weightedCost / weightedConsumption : 0;
+}
+
+function riskLabel(score) {
+  if (score <= 20) return "redus";
+  if (score <= 40) return "moderat";
+  if (score <= 60) return "mediu";
+  if (score <= 80) return "ridicat";
+  return "foarte ridicat";
+}
+
+function buildProfileAnalytics(profile, rows = []) {
+  const totalConsumption = profile.totals.consumptionMwh;
+  const totalPv = profile.totals.pvMwh;
+  const peakMw = profile.totals.peakMw;
+  const averageMw = profile.totals.averageMw;
+  const loadFactorPct = peakMw > 0 ? (averageMw / peakMw) * 100 : 0;
+  const pricedRows = rows.filter((row) => Math.abs(Number(row.price_lei_mwh) || 0) > 0);
+  const topCount = pricedRows.length > 0 ? Math.max(1, Math.ceil(pricedRows.length * 0.1)) : 0;
+  const sortedByPriceDesc = [...pricedRows].sort((a, b) => (Number(b.price_lei_mwh) || 0) - (Number(a.price_lei_mwh) || 0));
+  const expensiveRows = sortedByPriceDesc.slice(0, topCount);
+  const cheapRows = sortedByPriceDesc.slice(-topCount);
+  const expensiveConsumptionMwh = sumConsumption(expensiveRows);
+  const cheapConsumptionMwh = sumConsumption(cheapRows);
+  const expensiveAveragePrice = average(expensiveRows.map((row) => Number(row.price_lei_mwh) || 0));
+  const cheapAveragePrice = average(cheapRows.map((row) => Number(row.price_lei_mwh) || 0));
+  const priceSpreadLeiMwh = Math.max(0, expensiveAveragePrice - cheapAveragePrice);
+  const dayMwh = profile.totals.dayMwh;
+  const nightMwh = profile.totals.nightMwh;
+  const weekdayMwh = sumConsumption(rows, (row, index) => !isWeekendRow(row, index));
+  const weekendMwh = sumConsumption(rows, (row, index) => isWeekendRow(row, index));
+  const solarMwh = sumConsumption(rows, (row, index) => {
+    const hour = rowHour(row, index);
+    return hour >= 8 && hour < 18;
+  });
+  const eveningMwh = sumConsumption(rows, (row, index) => {
+    const hour = rowHour(row, index);
+    return hour >= 18 && hour < 22;
+  });
+  const hourlyValues = rows.map((row) => Number(row.consumption_mwh) || 0).filter((value) => value > 0);
+  const hourlyMean = average(hourlyValues);
+  const hourlyStd =
+    hourlyValues.length > 0
+      ? Math.sqrt(hourlyValues.reduce((sum, value) => sum + (value - hourlyMean) ** 2, 0) / hourlyValues.length)
+      : 0;
+  const monthlyValues = profile.monthly.map((row) => row.consumptionMwh).filter((value) => value > 0);
+  const monthlyAverage = average(monthlyValues);
+  const seasonalityRisk =
+    monthlyAverage > 0 ? clamp(((Math.max(...monthlyValues) - Math.min(...monthlyValues)) / monthlyAverage) * 45, 0, 100) : 0;
+  const volatilityRisk = hourlyMean > 0 ? clamp((hourlyStd / hourlyMean) * 55, 0, 100) : 0;
+  const peakRiskScore = peakMw > 0 ? clamp(100 - loadFactorPct, 0, 100) : 0;
+  const priceExposurePct = totalConsumption > 0 ? (expensiveConsumptionMwh / totalConsumption) * 100 : 0;
+  const priceExposureScore = pricedRows.length > 0 ? clamp(priceExposurePct, 0, 100) : 0;
+  const pvFitScore = totalConsumption > 0 ? clamp((solarMwh / totalConsumption) * 100, 0, 100) : 0;
+  const bessFitScore =
+    totalConsumption > 0
+      ? clamp((eveningMwh / totalConsumption) * 100 * 0.45 + clamp(priceSpreadLeiMwh / 8, 0, 40) + peakRiskScore * 0.15, 0, 100)
+      : 0;
+  const flexibilityScore = clamp((pvFitScore + bessFitScore) / 2, 0, 100);
+  const sourcingRiskScore =
+    totalConsumption > 0
+      ? Math.round(
+          0.3 * priceExposureScore +
+            0.25 * volatilityRisk +
+            0.2 * peakRiskScore +
+            0.15 * volatilityRisk +
+            0.1 * seasonalityRisk,
+        )
+      : 0;
+
+  const monthly = MONTHS.map((month, monthIndex) => {
+    const monthRows = rows.filter((row, index) => rowDateParts(row, index).monthIndex === monthIndex);
+    const monthPricedRows = monthRows.filter((row) => Math.abs(Number(row.price_lei_mwh) || 0) > 0);
+    const monthConsumptionMwh = sumConsumption(monthRows);
+    const monthPvMwh = monthRows.reduce((sum, row) => sum + (Number(row.pv_mwh) || 0), 0);
+    const monthPmpPzu = weightedPzu(monthPricedRows);
+    const monthSimplePzu = average(monthPricedRows.map((row) => Number(row.price_lei_mwh) || 0));
+    const monthTopCount = monthPricedRows.length > 0 ? Math.max(1, Math.ceil(monthPricedRows.length * 0.1)) : 0;
+    const monthSorted = [...monthPricedRows].sort((a, b) => (Number(b.price_lei_mwh) || 0) - (Number(a.price_lei_mwh) || 0));
+    return {
+      month: month.label,
+      monthKey: month.key,
+      consumptionMwh: monthConsumptionMwh,
+      pvMwh: monthPvMwh,
+      pmpPzuLeiMwh: monthPmpPzu,
+      simplePzuAverageLeiMwh: monthSimplePzu,
+      profileDifferenceLeiMwh: monthPmpPzu - monthSimplePzu,
+      expensiveConsumptionMwh: sumConsumption(monthSorted.slice(0, monthTopCount)),
+      cheapConsumptionMwh: sumConsumption(monthSorted.slice(-monthTopCount)),
+      weekdayMwh: sumConsumption(monthRows, (row, index) => !isWeekendRow(row, index)),
+      weekendMwh: sumConsumption(monthRows, (row, index) => isWeekendRow(row, index)),
+      pricedHours: monthPricedRows.length,
+    };
+  });
+
+  const heatmapMonthHour = MONTHS.map((month, monthIndex) => {
+    const cells = Array.from({ length: 24 }, (_, hour) => ({
+      month: month.label,
+      monthKey: month.key,
+      monthIndex,
+      hour,
+      consumptionMwh: 0,
+      pvMwh: 0,
+      priceLeiMwhSum: 0,
+      pricedHours: 0,
+      hours: 0,
+    }));
+    rows.forEach((row, index) => {
+      const parts = rowDateParts(row, index);
+      if (parts.monthIndex !== monthIndex) return;
+      const cell = cells[parts.hour];
+      cell.consumptionMwh += Number(row.consumption_mwh) || 0;
+      cell.pvMwh += Number(row.pv_mwh) || 0;
+      cell.hours += 1;
+      const price = Number(row.price_lei_mwh) || 0;
+      if (Math.abs(price) > 0) {
+        cell.priceLeiMwhSum += price;
+        cell.pricedHours += 1;
       }
     });
-    row.averageMw = row.enteredHours > 0 ? row.totalMwh / row.enteredHours : 0;
-    row.sharePct = totalConsumptionMwh > 0 ? (row.totalMwh / totalConsumptionMwh) * 100 : 0;
-    return row;
+    return cells.map((cell) => ({
+      ...cell,
+      averageConsumptionMw: cell.hours > 0 ? cell.consumptionMwh / cell.hours : 0,
+      averagePvMw: cell.hours > 0 ? cell.pvMwh / cell.hours : 0,
+      averagePriceLeiMwh: cell.pricedHours > 0 ? cell.priceLeiMwhSum / cell.pricedHours : 0,
+    }));
   });
+
+  const hourlyProfile = Array.from({ length: 24 }, (_, hour) => {
+    const hourRows = rows.filter((row, index) => rowHour(row, index) === hour);
+    const consumptionMwh = sumConsumption(hourRows);
+    const pvMwh = hourRows.reduce((sum, row) => sum + (Number(row.pv_mwh) || 0), 0);
+    const priceRows = hourRows.filter((row) => Math.abs(Number(row.price_lei_mwh) || 0) > 0);
+    return {
+      hour,
+      consumptionMwh,
+      pvMwh,
+      averageConsumptionMw: hourRows.length > 0 ? consumptionMwh / hourRows.length : 0,
+      averagePvMw: hourRows.length > 0 ? pvMwh / hourRows.length : 0,
+      averagePriceLeiMwh: average(priceRows.map((row) => Number(row.price_lei_mwh) || 0)),
+    };
+  });
+
+  return {
+    source: "curbe_consolidate",
+    annual: {
+      consumptionMwh: totalConsumption,
+      pvMwh: totalPv,
+      peakMw,
+      averageMw,
+      loadFactorPct,
+      pmpPzuLeiMwh: weightedPzu(pricedRows),
+      simplePzuAverageLeiMwh: average(pricedRows.map((row) => Number(row.price_lei_mwh) || 0)),
+      profileDifferenceLeiMwh: weightedPzu(pricedRows) - average(pricedRows.map((row) => Number(row.price_lei_mwh) || 0)),
+      dayMwh,
+      nightMwh,
+      dayPct: totalConsumption > 0 ? (dayMwh / totalConsumption) * 100 : 0,
+      nightPct: totalConsumption > 0 ? (nightMwh / totalConsumption) * 100 : 0,
+      weekdayMwh,
+      weekendMwh,
+      weekdayPct: totalConsumption > 0 ? (weekdayMwh / totalConsumption) * 100 : 0,
+      weekendPct: totalConsumption > 0 ? (weekendMwh / totalConsumption) * 100 : 0,
+      expensiveConsumptionMwh,
+      cheapConsumptionMwh,
+      expensiveConsumptionPct: totalConsumption > 0 ? (expensiveConsumptionMwh / totalConsumption) * 100 : 0,
+      cheapConsumptionPct: totalConsumption > 0 ? (cheapConsumptionMwh / totalConsumption) * 100 : 0,
+      expensiveAveragePriceLeiMwh: expensiveAveragePrice,
+      cheapAveragePriceLeiMwh: cheapAveragePrice,
+      priceSpreadLeiMwh,
+      pricedHours: pricedRows.length,
+    },
+    monthly,
+    heatmapMonthHour,
+    hourlyProfile,
+    scores: {
+      sourcingRiskScore,
+      priceExposureScore,
+      forecastRiskScore: volatilityRisk,
+      peakRiskScore,
+      volatilityScore: volatilityRisk,
+      seasonalityScore: seasonalityRisk,
+      stabilityScore: clamp(loadFactorPct, 0, 100),
+      flexibilityScore,
+      pvFitScore,
+      bessFitScore,
+    },
+  };
+}
+
+function buildExecutiveMetrics(profile, rows = []) {
+  state.profileAnalytics = buildProfileAnalytics(profile, rows);
+  const totals = profile.totals;
+  const totalConsumption = totals.consumptionMwh;
+  const peakMw = totals.peakMw;
+  const averageMw = totals.averageMw;
+  const loadFactorPct = peakMw > 0 ? (averageMw / peakMw) * 100 : 0;
+  const dayPct = totalConsumption > 0 ? (totals.dayMwh / totalConsumption) * 100 : 0;
+  const nightPct = totalConsumption > 0 ? (totals.nightMwh / totalConsumption) * 100 : 0;
+  const pricedRows = rows.filter((row) => Math.abs(Number(row.price_lei_mwh) || 0) > 0);
+  const weightedConsumption = pricedRows.reduce((sum, row) => sum + (Number(row.consumption_mwh) || 0), 0);
+  const weightedCost = pricedRows.reduce(
+    (sum, row) => sum + (Number(row.consumption_mwh) || 0) * (Number(row.price_lei_mwh) || 0),
+    0,
+  );
+  const pmpPzu = weightedConsumption > 0 ? weightedCost / weightedConsumption : 0;
+  const simplePzuAverage =
+    pricedRows.length > 0 ? pricedRows.reduce((sum, row) => sum + (Number(row.price_lei_mwh) || 0), 0) / pricedRows.length : 0;
+  const topCount = pricedRows.length > 0 ? Math.max(1, Math.ceil(pricedRows.length * 0.1)) : 0;
+  const sortedByPrice = [...pricedRows].sort((a, b) => (Number(b.price_lei_mwh) || 0) - (Number(a.price_lei_mwh) || 0));
+  const expensiveMwh = sumConsumption(sortedByPrice.slice(0, topCount));
+  const cheapMwh = sumConsumption(sortedByPrice.slice(-topCount));
+  const priceExposurePct = totalConsumption > 0 ? (expensiveMwh / totalConsumption) * 100 : 0;
+  const solarConsumptionMwh = sumConsumption(rows, (row, index) => {
+    const hour = rowHour(row, index);
+    return hour >= 8 && hour < 18;
+  });
+  const eveningConsumptionMwh = sumConsumption(rows, (row, index) => {
+    const hour = rowHour(row, index);
+    return hour >= 18 && hour < 22;
+  });
+  const pvFitPct = totalConsumption > 0 ? (solarConsumptionMwh / totalConsumption) * 100 : 0;
+  const eveningPct = totalConsumption > 0 ? (eveningConsumptionMwh / totalConsumption) * 100 : 0;
+  const hourlyValues = rows.map((row) => Number(row.consumption_mwh) || 0).filter((value) => value > 0);
+  const hourlyMean = hourlyValues.length > 0 ? hourlyValues.reduce((sum, value) => sum + value, 0) / hourlyValues.length : 0;
+  const hourlyStd =
+    hourlyValues.length > 0
+      ? Math.sqrt(hourlyValues.reduce((sum, value) => sum + (value - hourlyMean) ** 2, 0) / hourlyValues.length)
+      : 0;
+  const volatilityRisk = hourlyMean > 0 ? clamp((hourlyStd / hourlyMean) * 55, 0, 100) : 0;
+  const monthlyTotals = profile.monthly.map((row) => row.consumptionMwh).filter((value) => value > 0);
+  const monthlyAverage =
+    monthlyTotals.length > 0 ? monthlyTotals.reduce((sum, value) => sum + value, 0) / monthlyTotals.length : 0;
+  const seasonalityRisk =
+    monthlyAverage > 0 ? clamp(((Math.max(...monthlyTotals) - Math.min(...monthlyTotals)) / monthlyAverage) * 45, 0, 100) : 0;
+  const peakRisk = peakMw > 0 ? clamp(100 - loadFactorPct, 0, 100) : 0;
+  const priceExposureRisk = pricedRows.length > 0 ? clamp(priceExposurePct, 0, 100) : 0;
+  const forecastRisk = volatilityRisk;
+  const sourcingRiskScore =
+    totalConsumption > 0
+      ? Math.round(
+          0.3 * priceExposureRisk +
+            0.25 * forecastRisk +
+            0.2 * peakRisk +
+            0.15 * volatilityRisk +
+            0.1 * seasonalityRisk,
+        )
+      : 0;
+
+  let recommendation = "Introdu curbe";
+  if (totalConsumption > 0) {
+    if (sourcingRiskScore > 60 || (pmpPzu > 0 && simplePzuAverage > 0 && pmpPzu > simplePzuAverage)) {
+      recommendation = "Pret fix / banda";
+    } else if (pvFitPct > 60 || dayPct > 60) {
+      recommendation = "PV autoconsum";
+    } else if (eveningPct > 25 || peakRisk > 55) {
+      recommendation = "BESS / peak shaving";
+    } else if (pmpPzu > 0 && simplePzuAverage > 0 && pmpPzu < simplePzuAverage) {
+      recommendation = "PZU orar avantajos";
+    } else if (loadFactorPct > 60 && sourcingRiskScore <= 40) {
+      recommendation = "Pret fix / banda";
+    } else {
+      recommendation = "Banda + PZU";
+    }
+  }
+
+  return {
+    totalConsumption,
+    pmpPzu,
+    peakMw,
+    averageMw,
+    loadFactorPct,
+    dayPct,
+    nightPct,
+    pricedHours: pricedRows.length,
+    simplePzuAverage,
+    expensiveMwh,
+    cheapMwh,
+    priceExposurePct,
+    pvFitPct,
+    eveningPct,
+    sourcingRiskScore,
+    recommendation,
+  };
+}
+
+function loadFactorLabel(value) {
+  if (value > 70) return "excelent";
+  if (value >= 60) return "bun";
+  if (value >= 50) return "mediu";
+  return "volatil";
+}
+
+function opportunityLabel(score) {
+  if (score >= 75) return "Ridicata";
+  if (score >= 50) return "Medie";
+  if (score > 0) return "Redusa";
+  return "In asteptare";
+}
+
+function buildProfileOpportunity(metrics, analytics, contract) {
+  const annual = analytics?.annual || {};
+  const scores = analytics?.scores || {};
+  const hasConsumption = metrics.totalConsumption > 0;
+  const hasPrices = metrics.pricedHours > 0;
+  const forecastabilityScore = hasConsumption ? clamp(100 - (scores.forecastRiskScore || 0), 0, 100) : 0;
+  const seasonalityScore = hasConsumption ? clamp(100 - (scores.seasonalityScore || 0), 0, 100) : 0;
+  const profileAdvantagePct =
+    hasPrices && annual.simplePzuAverageLeiMwh > 0
+      ? clamp(((annual.simplePzuAverageLeiMwh - annual.pmpPzuLeiMwh) / annual.simplePzuAverageLeiMwh) * 100, -25, 25)
+      : 0;
+  const spotMarketFitScore = hasPrices
+    ? clamp(55 + profileAdvantagePct - (scores.priceExposureScore || 0) * 0.35 + (annual.cheapConsumptionPct || 0) * 0.25, 0, 100)
+    : 0;
+  const hedgingScore = hasConsumption
+    ? clamp(forecastabilityScore * 0.45 + metrics.loadFactorPct * 0.35 + seasonalityScore * 0.2, 0, 100)
+    : 0;
+
+  let contractRecommendation = "Introdu curbe";
+  if (hasConsumption) {
+    if (forecastabilityScore > 80 && metrics.loadFactorPct > 60) contractRecommendation = "FIX / forward";
+    else if (spotMarketFitScore > 75) contractRecommendation = "PZU orar";
+    else if (forecastabilityScore > 60 && spotMarketFitScore > 50) contractRecommendation = "Banda + PZU";
+    else if (metrics.sourcingRiskScore > 60) contractRecommendation = "Pret fix / banda";
+    else contractRecommendation = "Banda + monitorizare PZU";
+  }
+
+  const solarFitScore = clamp(scores.pvFitScore || 0, 0, 100);
+  const storageFitScore = clamp(scores.bessFitScore || 0, 0, 100);
+  const monthlyAverageMwh = metrics.totalConsumption > 0 ? metrics.totalConsumption / 12 : 0;
+  const jtMtScore =
+    contract.voltage === "JT" && (metrics.totalConsumption > 600 || monthlyAverageMwh > 50)
+      ? 90
+      : contract.voltage === "JT" && metrics.totalConsumption > 400
+        ? 65
+        : 0;
+  const peakKw = metrics.peakMw * 1000;
+  const atrUtilizationPct = contract.atrKw > 0 ? (peakKw / contract.atrKw) * 100 : 0;
+  let atrOptimizationScore = 0;
+  let atrLabel = "Completeaza ATR profilare";
+  if (contract.atrKw > 0 && peakKw > 0) {
+    if (atrUtilizationPct < 55) {
+      atrOptimizationScore = 85;
+      atrLabel = "ATR posibil supradimensionat";
+    } else if (atrUtilizationPct < 70) {
+      atrOptimizationScore = 60;
+      atrLabel = "ATR de verificat";
+    } else if (atrUtilizationPct > 95) {
+      atrOptimizationScore = 75;
+      atrLabel = "ATR aproape depasit";
+    } else {
+      atrOptimizationScore = 25;
+      atrLabel = "ATR echilibrat";
+    }
+  }
+  const reactiveScore = contract.reactiveCostLei > 0 ? clamp(40 + contract.reactiveCostLei / 500, 40, 100) : 0;
+  const efficiencyOptions = [
+    { score: solarFitScore, text: "PV autoconsum" },
+    { score: storageFitScore, text: "BESS / peak shaving" },
+    { score: jtMtScore, text: "Analiza trecere MT" },
+    { score: atrOptimizationScore, text: atrLabel },
+    { score: reactiveScore, text: "Compensare energie reactiva" },
+  ].sort((a, b) => b.score - a.score);
+  const efficiencyRecommendation = !hasConsumption
+    ? "Introdu curbe"
+    : efficiencyOptions[0].score >= 50
+      ? efficiencyOptions[0].text
+      : "Monitorizare profil";
+  const contractOptimizationScore = clamp(metrics.sourcingRiskScore, 0, 100);
+  const energyOpportunityScore = hasConsumption
+    ? clamp(
+        contractOptimizationScore * 0.25 +
+          spotMarketFitScore * 0.2 +
+          storageFitScore * 0.2 +
+          solarFitScore * 0.15 +
+          jtMtScore * 0.1 +
+          atrOptimizationScore * 0.1,
+        0,
+        100,
+      )
+    : 0;
+  const clientReady = Boolean(contract.clientName || contract.cui || contract.distributor || contract.atrKw > 0);
+
+  return {
+    clientReady,
+    forecastabilityScore,
+    spotMarketFitScore,
+    hedgingScore,
+    seasonalityScore,
+    solarFitScore,
+    storageFitScore,
+    jtMtScore,
+    atrOptimizationScore,
+    atrUtilizationPct,
+    atrLabel,
+    reactiveScore,
+    energyOpportunityScore,
+    contractRecommendation,
+    efficiencyRecommendation,
+  };
+}
+
+function setRoadmapStep(step, done, warn = false) {
+  const element = document.querySelector(`[data-roadmap-step="${step}"]`);
+  if (!element) return;
+  element.classList.toggle("done", Boolean(done));
+  element.classList.toggle("warn", !done && Boolean(warn));
+}
+
+function fillKeyValueRows(tbodyId, rows) {
+  const tbody = $(tbodyId);
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  rows.forEach(([label, value]) => {
+    const tr = document.createElement("tr");
+    const labelCell = document.createElement("td");
+    labelCell.textContent = label;
+    const valueCell = document.createElement("td");
+    valueCell.textContent = value;
+    tr.appendChild(labelCell);
+    tr.appendChild(valueCell);
+    tbody.appendChild(tr);
+  });
+}
+
+function setText(id, value) {
+  const element = $(id);
+  if (element) element.textContent = value;
+}
+
+function updateProfileRoadmapLayout(tab = "client") {
+  const layout = PROFILE_ROADMAP_LAYOUTS[tab] || PROFILE_ROADMAP_LAYOUTS.client;
+  const view = $("consumptionProfileView");
+  if (view) view.dataset.roadmapTab = tab;
+  setText("profileRoadmapTitle", layout.profileTitle);
+  setText("executivePanelTitle", layout.executiveTitle);
+  setText("analyticsPanelTitle", layout.analyticsTitle);
+}
+
+function renderProfileRoadmap(metrics, opportunity, contract) {
+  if (!$("profileRoadmapTabs")) return;
+  const chip = $("profileContractStatusChip");
+  if (chip) {
+    chip.className = `status-chip ${opportunity.clientReady ? "ok" : "warn"}`;
+    chip.textContent = opportunity.clientReady ? (contract.clientName || "Date salvate") : "Date client";
+  }
+
+  setText("profileKpiPmpPzu", metrics.pmpPzu > 0 ? `${numberFormat.format(metrics.pmpPzu)} lei/MWh` : "0,00");
+  setText("profileKpiLoadFactor", formatPercent(metrics.loadFactorPct));
+  setText("profileKpiLoadFactorLabel", metrics.totalConsumption > 0 ? `Profil ${loadFactorLabel(metrics.loadFactorPct)}` : "Profil in asteptare");
+  setText("profileKpiForecastability", formatPercent(opportunity.forecastabilityScore));
+  setText("profileKpiSpotFit", formatPercent(opportunity.spotMarketFitScore));
+  setText("profileKpiHedging", formatPercent(opportunity.hedgingScore));
+  setText("profileKpiSeasonality", formatPercent(opportunity.seasonalityScore));
+  setText("profileKpiSolarFit", formatPercent(opportunity.solarFitScore));
+  setText("profileKpiStorageFit", formatPercent(opportunity.storageFitScore));
+  setText("profileKpiJtMt", formatPercent(opportunity.jtMtScore));
+  setText("profileKpiJtMtLabel", `${opportunityLabel(opportunity.jtMtScore)}${contract.voltage ? ` - ${contract.voltage}` : ""}`);
+  setText("profileKpiAtrOptimization", formatPercent(opportunity.atrOptimizationScore));
+  setText(
+    "profileKpiAtrLabel",
+    contract.atrKw > 0
+      ? `${opportunity.atrLabel} (${numberFormat.format(opportunity.atrUtilizationPct)}% utilizare)`
+      : "ATR profilare separat",
+  );
+  setText("profileKpiReactive", formatPercent(opportunity.reactiveScore));
+  setText(
+    "profileKpiReactiveLabel",
+    contract.reactiveCostLei > 0 ? `${formatLei(contract.reactiveCostLei)} anual` : "Fara cost introdus",
+  );
+  setText("profileKpiEnergyOpportunity", formatPercent(opportunity.energyOpportunityScore));
+}
+
+function stdDeviation(values) {
+  const filtered = values.filter((value) => Number.isFinite(value));
+  if (!filtered.length) return 0;
+  const avg = average(filtered);
+  return Math.sqrt(filtered.reduce((sum, value) => sum + (value - avg) ** 2, 0) / filtered.length);
+}
+
+function hourlyConsumptionShare(hourlyProfile = [], startHour = 0, endHour = 24) {
+  const total = hourlyProfile.reduce((sum, row) => sum + (Number(row.consumptionMwh) || 0), 0);
+  if (total <= 0) return 0;
+  const selected = hourlyProfile.reduce((sum, row) => {
+    const hour = Number(row.hour) || 0;
+    const inRange = startHour < endHour ? hour >= startHour && hour < endHour : hour >= startHour || hour < endHour;
+    return inRange ? sum + (Number(row.consumptionMwh) || 0) : sum;
+  }, 0);
+  return (selected / total) * 100;
+}
+
+function monthlySeasonalityScore(monthly = []) {
+  const values = monthly.map((row) => Number(row.consumptionMwh) || 0).filter((value) => value > 0);
+  const avg = average(values);
+  if (avg <= 0) return 0;
+  return clamp(((Math.max(...values) - Math.min(...values)) / avg) * 100, 0, 100);
+}
+
+function confidenceLabel(score) {
+  if (score < 50) return "Profil neclar";
+  if (score < 70) return "Clasificare moderata";
+  if (score < 85) return "Clasificare buna";
+  return "Clasificare foarte sigura";
+}
+
+function procurementContractRecommendation(strategy) {
+  if (strategy === "Forward Friendly") return "Pret fix 12-24 luni / hedging forward";
+  if (strategy === "Spot Friendly") return "PZU orar";
+  if (strategy === "Hybrid Strategy") return "Banda + PZU";
+  if (strategy === "High Risk Profile") return "Pret fix + marja de risc";
+  return "Fix + componenta indexata";
+}
+
+function percentile(values, p) {
+  const filtered = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!filtered.length) return null;
+  if (filtered.length === 1) return filtered[0];
+  const index = (filtered.length - 1) * p;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  const weight = index - lower;
+  return filtered[lower] + (filtered[upper] - filtered[lower]) * weight;
+}
+
+function formatNullableMetric(value, suffix = "") {
+  return Number.isFinite(value) ? `${numberFormat.format(value)}${suffix}` : "N/A";
+}
+
+function riskGaugeLabel(score) {
+  if (!Number.isFinite(score)) return "Risc in asteptare";
+  if (score <= 25) return "Risc redus";
+  if (score <= 50) return "Risc mediu";
+  if (score <= 75) return "Risc ridicat";
+  return "Risc critic";
+}
+
+function riskGaugeClass(score) {
+  if (!Number.isFinite(score)) return "warn";
+  if (score <= 25) return "ok";
+  if (score <= 50) return "warn";
+  if (score <= 75) return "high";
+  return "critical";
+}
+
+function peakRiskFromRatio(ratio) {
+  if (!Number.isFinite(ratio)) return null;
+  if (ratio <= 1.5) return 10;
+  if (ratio <= 2.5) return 35;
+  if (ratio <= 4) return 65;
+  return 90;
+}
+
+function peakBaseRatioLabel(ratio) {
+  if (!Number.isFinite(ratio)) return "N/A";
+  if (ratio <= 1.5) return "Profil foarte stabil";
+  if (ratio <= 2.5) return "Profil stabil/moderat";
+  if (ratio <= 4) return "Profil cu varfuri relevante";
+  return "Profil cu varfuri puternice";
+}
+
+function costConcentrationLabel(score) {
+  if (!Number.isFinite(score)) return "Indisponibil";
+  if (score <= 25) return "Cost distribuit uniform";
+  if (score <= 50) return "Cost moderat concentrat";
+  if (score <= 75) return "Cost concentrat";
+  return "Cost foarte concentrat";
+}
+
+function buildLoadDna(rows = []) {
+  const values = rows
+    .map((row) => Number(row.consumption_mwh))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const sortedDesc = [...values].sort((a, b) => b - a);
+  const peakloadMw = sortedDesc.length ? sortedDesc[0] : null;
+  const baseloadMw = percentile(values, 0.1);
+  const midloadMw = percentile(values, 0.5);
+  const highloadMw = percentile(values, 0.9);
+  const peakBaseRatio = baseloadMw && baseloadMw > 0 && peakloadMw ? peakloadMw / baseloadMw : null;
+  const peakRiskScore = peakRiskFromRatio(peakBaseRatio);
+  const sampleSize = sortedDesc.length > 300 ? 300 : sortedDesc.length;
+  const points =
+    sampleSize > 0
+      ? Array.from({ length: sampleSize }, (_, index) => {
+          const sourceIndex = sampleSize === 1 ? 0 : Math.round((index / (sampleSize - 1)) * (sortedDesc.length - 1));
+          return {
+            hour: sourceIndex + 1,
+            value: sortedDesc[sourceIndex],
+          };
+        })
+      : [];
+  return {
+    validHours: values.length,
+    sortedDesc,
+    points,
+    peakloadMw,
+    baseloadMw,
+    midloadMw,
+    highloadMw,
+    peakBaseRatio,
+    peakRiskScore,
+    label: peakBaseRatioLabel(peakBaseRatio),
+  };
+}
+
+function buildCostDna(rows = []) {
+  const validRows = rows
+    .map((row, index) => {
+      const consumption = Number(row.consumption_mwh);
+      const price = Number(row.price_lei_mwh);
+      if (!Number.isFinite(consumption) || consumption <= 0 || !Number.isFinite(price) || Math.abs(price) <= 0) return null;
+      const cost = consumption * price;
+      const parts = rowDateParts(row, index);
+      return {
+        index,
+        timestamp: row.timestamp || `${selectedYear()}-${String(parts.monthIndex + 1).padStart(2, "0")}-${String(parts.day).padStart(2, "0")} ${String(parts.hour).padStart(2, "0")}:00`,
+        consumption,
+        price,
+        cost,
+      };
+    })
+    .filter(Boolean);
+
+  if (!validRows.length) {
+    return {
+      available: false,
+      totalCost: 0,
+      top10: [],
+      top100Share: null,
+      concentrationIndex: null,
+      expensiveCostShare: null,
+      cheapCostShare: null,
+      distribution: [
+        { label: "Ore ieftine PZU", value: 0 },
+        { label: "Ore medii PZU", value: 0 },
+        { label: "Ore scumpe PZU", value: 0 },
+      ],
+    };
+  }
+
+  const sortedByCost = [...validRows].sort((a, b) => b.cost - a.cost);
+  const totalCost = validRows.reduce((sum, row) => sum + row.cost, 0);
+  const positiveTotalCost = validRows.reduce((sum, row) => sum + Math.max(row.cost, 0), 0);
+  const top100 = sortedByCost.slice(0, Math.min(100, sortedByCost.length));
+  const top100Cost = top100.reduce((sum, row) => sum + Math.max(row.cost, 0), 0);
+  const top100Share = positiveTotalCost > 0 ? (top100Cost / positiveTotalCost) * 100 : 0;
+  const concentrationIndex = Math.min(100, top100Share * 4);
+  const sortedByPrice = [...validRows].sort((a, b) => a.price - b.price);
+  const bucketSize = Math.max(1, Math.ceil(sortedByPrice.length * 0.2));
+  const cheapRows = new Set(sortedByPrice.slice(0, bucketSize).map((row) => row.index));
+  const expensiveRows = new Set(sortedByPrice.slice(-bucketSize).map((row) => row.index));
+  const costByBucket = validRows.reduce(
+    (acc, row) => {
+      const cost = Math.max(row.cost, 0);
+      if (cheapRows.has(row.index)) acc.cheap += cost;
+      else if (expensiveRows.has(row.index)) acc.expensive += cost;
+      else acc.medium += cost;
+      return acc;
+    },
+    { cheap: 0, medium: 0, expensive: 0 },
+  );
+  const expensiveCostShare = positiveTotalCost > 0 ? (costByBucket.expensive / positiveTotalCost) * 100 : 0;
+  const cheapCostShare = positiveTotalCost > 0 ? (costByBucket.cheap / positiveTotalCost) * 100 : 0;
+  return {
+    available: true,
+    validHours: validRows.length,
+    totalCost,
+    positiveTotalCost,
+    top10: sortedByCost.slice(0, 10),
+    top100Share,
+    concentrationIndex,
+    expensiveCostShare,
+    cheapCostShare,
+    distribution: [
+      { label: "Ore ieftine PZU", value: costByBucket.cheap },
+      { label: "Ore medii PZU", value: costByBucket.medium },
+      { label: "Ore scumpe PZU", value: costByBucket.expensive },
+    ],
+  };
+}
+
+function riskDnaText(score) {
+  if (!Number.isFinite(score)) return "Curba orara de consum este necesara pentru generarea Procurement DNA.";
+  if (score <= 25) {
+    return "Profilul prezinta risc redus, cu un consum predictibil si o volatilitate scazuta. Achizitia poate fi structurata cu un grad bun de incredere.";
+  }
+  if (score <= 50) {
+    return "Profilul prezinta risc mediu, cu variatii moderate ale consumului. Se recomanda o structura contractuala echilibrata si monitorizare lunara.";
+  }
+  if (score <= 75) {
+    return "Profilul prezinta risc ridicat, cauzat de volatilitate, sezonalitate sau varfuri relevante de consum. Contractarea trebuie sa includa protectie la variatii.";
+  }
+  return "Profilul prezinta risc critic pentru achizitie, cu predictibilitate redusa si expunere ridicata la costuri. Se recomanda prudenta si conditii stricte de prognoza.";
+}
+
+function loadDnaText(ratio) {
+  if (!Number.isFinite(ratio)) return "Curba orara de consum este necesara pentru generarea Load DNA.";
+  if (ratio <= 1.5) {
+    return "Curba de durata indica un profil foarte stabil, cu sarcina de baza ridicata si varfuri reduse fata de consumul permanent.";
+  }
+  if (ratio <= 2.5) {
+    return "Curba de durata indica un profil stabil, dar cu varfuri moderate de consum. Profilul poate sustine o structura contractuala predictibila.";
+  }
+  if (ratio <= 4) {
+    return "Curba de durata indica existenta unor varfuri relevante de consum. Acestea pot crea costuri suplimentare si justifica masuri de peak shaving.";
+  }
+  return "Curba de durata evidentiaza varfuri puternice raportate la sarcina de baza. Profilul necesita analiza de reducere a varfurilor si optimizare ATR.";
+}
+
+function costDnaText(score, available) {
+  if (!available) return "Cost DNA este indisponibil pana cand exista consum orar si preturi PZU valide.";
+  if (score > 75) {
+    return "Costul energiei este foarte concentrat intr-un numar redus de ore, ceea ce indica potential ridicat pentru management activ al consumului si stocare.";
+  }
+  if (score > 50) {
+    return "Costul energiei este concentrat in intervale relevante, ceea ce indica potential de optimizare prin contractare, flexibilitate sau baterie.";
+  }
+  if (score > 25) {
+    return "Costul energiei este moderat concentrat, fara o dependenta excesiva de un numar redus de ore, dar merita monitorizate orele scumpe.";
+  }
+  return "Costul energiei este distribuit relativ uniform pe parcursul perioadei analizate, cu expunere redusa la cateva intervale dominante.";
+}
+
+function procurementReportText(dna) {
+  if (!dna.hasConsumption) return "Curba orara de consum este necesara pentru generarea Procurement DNA.";
+  const parts = [dna.riskText, dna.loadText, dna.costText];
+  if (dna.validConsumptionHours > 0 && dna.validConsumptionHours < 500) {
+    parts.unshift("Numar redus de ore disponibile. Clasificarea Procurement DNA poate avea acuratete limitata.");
+  }
+  parts.push(`Recomandarea contractuala rezultata este: ${dna.contractRecommendation}.`);
+  return parts.filter(Boolean).join(" ");
+}
+
+function procurementRecommendationFromStrategy(strategy, riskScore, costDna, loadDna) {
+  let recommendation = "Fix + componenta indexata";
+  if (strategy === "Forward Friendly" && riskScore <= 25) recommendation = "Pret fix 12-24 luni / acoperire forward";
+  else if (strategy === "Spot Friendly" && riskScore <= 50) recommendation = "PZU orar cu monitorizare lunara";
+  else if (strategy === "Hybrid Strategy") recommendation = "Banda + PZU / structura mixta";
+  else if (strategy === "High Risk Profile") recommendation = "Pret fix + marja de risc / conditii stricte prognoza";
+
+  const notes = [];
+  if ((costDna.concentrationIndex || 0) > 70) {
+    notes.push("Analiza recomandata pentru reducerea expunerii in orele de cost ridicat.");
+  }
+  if (Number.isFinite(loadDna.peakBaseRatio) && loadDna.peakBaseRatio > 3) {
+    notes.push("Analiza recomandata pentru reducerea varfurilor de consum si optimizarea ATR.");
+  }
+  return { recommendation, subtext: notes.join(" ") || "Strategie contractuala recomandata" };
+}
+
+function buildProcurementDna(profile, metrics, analytics, opportunity, contract, rows = state.lastProfileRows) {
+  const annual = analytics?.annual || {};
+  const scores = analytics?.scores || {};
+  const monthly = analytics?.monthly || [];
+  const hourlyProfile = analytics?.hourlyProfile || [];
+  const hasConsumption = (metrics.totalConsumption || 0) > 0;
+  const hasPrices = (metrics.pricedHours || 0) > 0;
+  const loadDna = buildLoadDna(rows);
+  const costDna = buildCostDna(rows);
+  const dailyValues = (profile.daily || []).map((row) => Number(row.totalMwh) || 0).filter((value) => value > 0);
+  const dailyAverage = average(dailyValues);
+  const dailyCv = dailyAverage > 0 ? stdDeviation(dailyValues) / dailyAverage : 1;
+  const forecastabilityScore = hasConsumption ? clamp(100 - dailyCv * 100, 0, 100) : 0;
+  const volatilityScore = hasConsumption ? clamp(scores.volatilityScore || 100 - forecastabilityScore, 0, 100) : 0;
+  const seasonalityScore = monthlySeasonalityScore(monthly);
+  const loadFactorScore = clamp(metrics.loadFactorPct || 0, 0, 100);
+  const stabilityScore = clamp(scores.stabilityScore || loadFactorScore, 0, 100);
+  const nightRatio = clamp(annual.nightPct ?? metrics.nightPct, 0, 100);
+  const dayRatio = clamp(annual.dayPct ?? metrics.dayPct, 0, 100);
+  const weekendRatio = clamp(annual.weekendPct || 0, 0, 100);
+  const weekdayRatio = clamp(annual.weekdayPct || 0, 0, 100);
+  const day0622 = hourlyConsumptionShare(hourlyProfile, 6, 22);
+  const day0717 = hourlyConsumptionShare(hourlyProfile, 7, 17);
+  const day0818 = hourlyConsumptionShare(hourlyProfile, 8, 18);
+  const day0921 = hourlyConsumptionShare(hourlyProfile, 9, 21);
+  const eveningPct = clamp(metrics.eveningPct || hourlyConsumptionShare(hourlyProfile, 18, 22), 0, 100);
+  const monthlyValues = monthly.map((row) => Number(row.consumptionMwh) || 0).filter((value) => value > 0);
+  const monthlyAverage = average(monthlyValues);
+  const maxMonth = monthlyValues.length ? Math.max(...monthlyValues) : 0;
+
+  let operationalProfile = "Profil mixt";
+  if (hasConsumption) {
+    if (seasonalityScore > 60 || (monthlyAverage > 0 && maxMonth > 1.5 * monthlyAverage)) operationalProfile = "Sezonier";
+    else if (loadFactorScore > 75 && weekendRatio > 70 && nightRatio > 40) operationalProfile = "Industrial 24/7";
+    else if (loadFactorScore >= 60 && loadFactorScore <= 75 && weekendRatio > 50 && nightRatio > 30) operationalProfile = "Industrial 3 schimburi";
+    else if (day0622 > 70 && nightRatio < 30 && weekendRatio < 60) operationalProfile = "Industrial 2 schimburi";
+    else if (day0717 > 65 && nightRatio < 20 && weekendRatio < 30) operationalProfile = "Industrial 1 schimb";
+    else if (day0921 > 70 && weekendRatio > 60 && nightRatio < 25) operationalProfile = "Retail / comercial";
+    else if (loadFactorScore > 60 && weekendRatio > 70 && seasonalityScore < 30) operationalProfile = "Logistica";
+  }
+
+  const profileAdvantage =
+    hasPrices && annual.simplePzuAverageLeiMwh > 0
+      ? ((annual.simplePzuAverageLeiMwh - annual.pmpPzuLeiMwh) / annual.simplePzuAverageLeiMwh) * 100
+      : 0;
+  const spotMarketFit = hasPrices
+    ? clamp(
+        (annual.pmpPzuLeiMwh < annual.simplePzuAverageLeiMwh ? 35 : 0) +
+          ((annual.cheapConsumptionMwh || 0) > (annual.expensiveConsumptionMwh || 0) ? 35 : 0) +
+          clamp(profileAdvantage, -20, 30) +
+          (annual.cheapConsumptionPct || 0) * 0.2,
+        0,
+        100,
+      )
+    : 0;
+  const hedgingFit = hasConsumption
+    ? clamp(0.4 * forecastabilityScore + 0.4 * loadFactorScore + 0.2 * (100 - seasonalityScore), 0, 100)
+    : 0;
+  const peakRiskScore = Number.isFinite(loadDna.peakRiskScore) ? loadDna.peakRiskScore : null;
+  const riskScore = hasConsumption && Number.isFinite(peakRiskScore)
+    ? clamp(0.35 * (100 - forecastabilityScore) + 0.25 * seasonalityScore + 0.25 * volatilityScore + 0.15 * peakRiskScore, 0, 100)
+    : null;
+
+  let procurementStrategy = "High Risk Profile";
+  if (!hasConsumption) procurementStrategy = "Introdu curbe";
+  else if (Number.isFinite(riskScore) && riskScore <= 25 && hedgingFit > 75) {
+    procurementStrategy = "Forward Friendly";
+  } else if (Number.isFinite(riskScore) && riskScore <= 50 && spotMarketFit > 75) {
+    procurementStrategy = "Spot Friendly";
+  } else if (Number.isFinite(riskScore) && riskScore > 60) {
+    procurementStrategy = "High Risk Profile";
+  } else if (Number.isFinite(riskScore) && riskScore >= 26 && riskScore <= 60) {
+    procurementStrategy = "Hybrid Strategy";
+  } else {
+    procurementStrategy = "Hybrid Strategy";
+  }
+
+  const solarReadiness = day0818 > 60 ? "Solar Ready" : day0818 >= 40 ? "Solar Medium Fit" : "Solar Low Fit";
+  const storageReady = (scores.bessFitScore || 0) > 70 && eveningPct > 15 && (annual.priceSpreadLeiMwh || 0) > 300;
+  const storageReadiness = storageReady ? "Storage Ready" : (scores.bessFitScore || 0) >= 45 || eveningPct > 15 ? "Storage Medium Fit" : "Storage Low Fit";
+  const monthlyAverageMwh = metrics.totalConsumption > 0 ? metrics.totalConsumption / 12 : 0;
+  const peakKw = (metrics.peakMw || 0) * 1000;
+  const approvedKw = contract.approvedPowerKw || contract.atrKw || 0;
+  const gridUtilizationPct = approvedKw > 0 ? (peakKw / approvedKw) * 100 : 0;
+  let gridOptimization = "No Grid Opportunity";
+  if (contract.voltage === "JT" && monthlyAverageMwh > 50) gridOptimization = "JT -> MT Opportunity";
+  else if (approvedKw > 0 && gridUtilizationPct >= 90) gridOptimization = "ATR Optimization";
+
+  const opportunityItems = [];
+  if ((costDna.concentrationIndex || 0) > 70 && (scores.bessFitScore || 0) > 70) opportunityItems.push("Storage Ready");
+  else if (storageReadiness === "Storage Ready") opportunityItems.push("Storage Ready");
+  else if (solarReadiness === "Solar Ready") opportunityItems.push("Solar Ready");
+  if (Number.isFinite(loadDna.peakBaseRatio) && loadDna.peakBaseRatio > 3) opportunityItems.push("Peak Shaving Opportunity");
+  if (Number.isFinite(loadDna.peakBaseRatio) && loadDna.peakBaseRatio > 3 && gridOptimization === "ATR Optimization") {
+    opportunityItems.push("Grid Optimization Ready");
+  } else if (gridOptimization !== "No Grid Opportunity" && !opportunityItems.includes("Grid Optimization Ready")) {
+    opportunityItems.push("Grid Optimization Ready");
+  }
+  const opportunityDna = opportunityItems.length ? [...new Set(opportunityItems)].join(" + ") : "No Immediate Opportunity";
+
+  const confidenceScore = hasConsumption
+    ? clamp(0.35 * forecastabilityScore + 0.25 * loadFactorScore + 0.2 * (100 - seasonalityScore) + 0.2 * stabilityScore, 0, 100)
+    : 0;
+  const riskLevel = riskGaugeLabel(riskScore);
+  const recommendation = procurementRecommendationFromStrategy(procurementStrategy, riskScore || 0, costDna, loadDna);
+  const contractRecommendation = recommendation.recommendation;
+  const finalOutput = hasConsumption
+    ? `${operationalProfile} | ${procurementStrategy} | ${opportunityDna}`
+    : "Profil mixt | High Risk Profile | No Immediate Opportunity";
+  const loadBuckets = [
+    { label: "00-06", value: hourlyProfile.filter((row) => row.hour >= 0 && row.hour < 6).reduce((sum, row) => sum + (Number(row.consumptionMwh) || 0), 0) },
+    { label: "06-12", value: hourlyProfile.filter((row) => row.hour >= 6 && row.hour < 12).reduce((sum, row) => sum + (Number(row.consumptionMwh) || 0), 0) },
+    { label: "12-18", value: hourlyProfile.filter((row) => row.hour >= 12 && row.hour < 18).reduce((sum, row) => sum + (Number(row.consumptionMwh) || 0), 0) },
+    { label: "18-24", value: hourlyProfile.filter((row) => row.hour >= 18 && row.hour < 24).reduce((sum, row) => sum + (Number(row.consumptionMwh) || 0), 0) },
+  ];
+
+  const dna = {
+    hasConsumption,
+    operationalProfile,
+    procurementStrategy,
+    opportunityDna,
+    finalOutput,
+    confidenceScore,
+    confidenceLabel: confidenceLabel(confidenceScore),
+    validConsumptionHours: loadDna.validHours,
+    lowHoursWarning: loadDna.validHours > 0 && loadDna.validHours < 500,
+    riskScore,
+    riskGaugeClass: riskGaugeClass(riskScore),
+    riskLevel,
+    riskLabel: hasConsumption && Number.isFinite(riskScore) ? `${numberFormat.format(riskScore)} / 100 - ${riskLevel}` : "Risc in asteptare",
+    contractRecommendation,
+    contractRecommendationSubtext: recommendation.subtext,
+    loadFactorScore,
+    dayRatio,
+    nightRatio,
+    weekdayRatio,
+    weekendRatio,
+    seasonalityScore,
+    forecastabilityScore,
+    volatilityScore,
+    peakRiskScore,
+    spotMarketFit,
+    hedgingFit,
+    loadDna,
+    costDna,
+    riskText: riskDnaText(riskScore),
+    loadText: loadDnaText(loadDna.peakBaseRatio),
+    costText: costDnaText(costDna.concentrationIndex, costDna.available),
+    solarReadiness,
+    solarLabel: `${numberFormat.format(day0818)}% consum 08:00-18:00`,
+    storageReadiness,
+    storageLabel: `${numberFormat.format(scores.bessFitScore || 0)}% BESS fit / ${numberFormat.format(eveningPct)}% seara / ${numberFormat.format(annual.priceSpreadLeiMwh || 0)} lei/MWh spread`,
+    gridOptimization,
+    gridLabel:
+      gridOptimization === "JT -> MT Opportunity"
+        ? `JT si ${numberFormat.format(monthlyAverageMwh)} MWh/luna`
+        : gridOptimization === "ATR Optimization"
+          ? `${numberFormat.format(gridUtilizationPct)}% utilizare putere aprobata`
+          : "Fara oportunitate imediata",
+    reportText: "",
+    radar: [
+      { label: "Forecastability", value: forecastabilityScore },
+      { label: "Spot Fit", value: spotMarketFit },
+      { label: "Hedging Fit", value: hedgingFit },
+      { label: "Solar Fit", value: day0818 },
+      { label: "Storage Fit", value: scores.bessFitScore || 0 },
+      { label: "Stability", value: stabilityScore },
+    ],
+    loadBuckets,
+    weekdayWeekend: [
+      { label: "Weekday", value: annual.weekdayMwh || 0 },
+      { label: "Weekend", value: annual.weekendMwh || 0 },
+    ],
+    monthlySeasonality: monthly.map((row) => ({ label: row.month, value: Number(row.consumptionMwh) || 0 })),
+  };
+  dna.reportText = procurementReportText(dna);
+  return dna;
+}
+
+function renderProcurementDna(profile, metrics, analytics, opportunity, contract, rows = state.lastProfileRows) {
+  if (!$("procurementDnaLabel")) return;
+  const dna = buildProcurementDna(profile, metrics, analytics, opportunity, contract, rows);
+  state.procurementDna = dna;
+  window.bessProcurementDna = dna;
+  setText("procurementDnaLabel", dna.finalOutput);
+  setText(
+    "procurementDnaSubtext",
+    dna.lowHoursWarning
+      ? "Numar redus de ore disponibile. Clasificarea Procurement DNA poate avea acuratete limitata."
+      : "Profil operational, strategie achizitie si oportunitate energetica",
+  );
+  setText("procurementConfidence", formatPercent(dna.confidenceScore));
+  setText("procurementConfidenceLabel", dna.confidenceLabel);
+  setText("procurementRiskGauge", Number.isFinite(dna.riskScore) ? `${numberFormat.format(dna.riskScore)} / 100` : "N/A");
+  setText("procurementContractRecommendation", dna.contractRecommendation);
+  setText("procurementContractRecommendationSubtext", dna.contractRecommendationSubtext);
+  setText("procurementRiskLabel", dna.riskLabel);
+  setText("riskDnaForecastability", formatPercent(dna.forecastabilityScore));
+  setText("riskDnaSeasonality", formatPercent(dna.seasonalityScore));
+  setText("riskDnaVolatility", formatPercent(dna.volatilityScore));
+  setText("riskDnaPeakRisk", Number.isFinite(dna.peakRiskScore) ? formatPercent(dna.peakRiskScore) : "N/A");
+  setText("riskDnaGaugeTotal", Number.isFinite(dna.riskScore) ? formatPercent(dna.riskScore) : "N/A");
+  setText("riskDnaGaugeLabel", dna.riskLevel);
+  ["procurementRiskGauge", "riskDnaGaugeTotal"].forEach((id) => {
+    const card = $(id)?.closest(".procurement-card");
+    if (!card) return;
+    card.classList.remove("risk-ok", "risk-warn", "risk-high", "risk-critical");
+    card.classList.add(`risk-${dna.riskGaugeClass}`);
+  });
+  setText("riskDnaInterpretation", dna.riskText);
+  setText("procurementBaseload", formatNullableMetric(dna.loadDna.baseloadMw, " MW"));
+  setText("procurementMidload", formatNullableMetric(dna.loadDna.midloadMw, " MW"));
+  setText("procurementPeakload", formatNullableMetric(dna.loadDna.peakloadMw, " MW"));
+  setText("procurementPeakBaseRatio", formatNullableMetric(dna.loadDna.peakBaseRatio));
+  setText("procurementPeakBaseLabel", dna.loadDna.label);
+  setText("loadDnaInterpretation", dna.loadText);
+  setText("procurementTotalCost", dna.costDna.available ? formatLei(dna.costDna.totalCost) : "Indisponibil");
+  setText("procurementCostConcentration", Number.isFinite(dna.costDna.concentrationIndex) ? formatPercent(dna.costDna.concentrationIndex) : "Indisponibil");
+  setText("procurementCostConcentrationLabel", costConcentrationLabel(dna.costDna.concentrationIndex));
+  setText("procurementTop100Share", Number.isFinite(dna.costDna.top100Share) ? formatPercent(dna.costDna.top100Share) : "Indisponibil");
+  setText("procurementExpensiveCostShare", Number.isFinite(dna.costDna.expensiveCostShare) ? formatPercent(dna.costDna.expensiveCostShare) : "Indisponibil");
+  setText("procurementCheapCostShare", Number.isFinite(dna.costDna.cheapCostShare) ? formatPercent(dna.costDna.cheapCostShare) : "Indisponibil");
+  setText("costDnaInterpretation", dna.costText);
+  setText("procurementFinalOutput", dna.finalOutput);
+  setText("procurementReportText", dna.reportText);
+  drawProcurementDnaCharts(dna);
+}
+
+function renderGeneratedSourcingData(analytics) {
+  if (!$("analyticsStatus") || !analytics) return;
+  const annual = analytics.annual || {};
+  const scores = analytics.scores || {};
+  const hasConsumption = (Number(annual.consumptionMwh) || 0) > 0;
+  const hasPrices = (Number(annual.pricedHours) || 0) > 0;
+
+  $("analyticsPmpAnnual").textContent = hasPrices ? formatMetric(annual.pmpPzuLeiMwh, " lei/MWh") : "0,00";
+  $("analyticsSimplePzu").textContent = hasPrices ? formatMetric(annual.simplePzuAverageLeiMwh, " lei/MWh") : "0,00";
+  $("analyticsProfileDiff").textContent = hasPrices ? formatMetric(annual.profileDifferenceLeiMwh, " lei/MWh") : "0,00";
+  $("analyticsExpensiveMwh").textContent = `${formatMetric(annual.expensiveConsumptionMwh, " MWh")} / ${formatPercent(annual.expensiveConsumptionPct)}`;
+  $("analyticsCheapMwh").textContent = `${formatMetric(annual.cheapConsumptionMwh, " MWh")} / ${formatPercent(annual.cheapConsumptionPct)}`;
+  $("analyticsWeekdayWeekend").textContent = `${formatPercent(annual.weekdayPct)} / ${formatPercent(annual.weekendPct)}`;
+  $("analyticsPvFit").textContent = formatPercent(scores.pvFitScore);
+  $("analyticsBessFit").textContent = formatPercent(scores.bessFitScore);
+
+  $("analyticsStatus").textContent = hasConsumption
+    ? `Generate din curbe consolidate: ${formatMetric(annual.consumptionMwh, " MWh consum")}, ${Number(annual.pricedHours) || 0} ore PZU.`
+    : "Datele se genereaza automat dupa introducerea curbelor consolidate.";
+
+  const sourceChip = $("analyticsSourceChip");
+  sourceChip.className = `status-chip ${hasConsumption && hasPrices ? "ok" : hasConsumption ? "warn" : "warn"}`;
+  sourceChip.textContent = hasConsumption && hasPrices ? "Date generate" : hasConsumption ? "Lipsesc PZU" : "In asteptare";
+
+  fillKeyValueRows("analyticsAnnualRows", [
+    ["PMP PZU client", hasPrices ? formatMetric(annual.pmpPzuLeiMwh, " lei/MWh") : "0,00"],
+    ["Media PZU simpla", hasPrices ? formatMetric(annual.simplePzuAverageLeiMwh, " lei/MWh") : "0,00"],
+    ["Diferenta profil client", hasPrices ? formatMetric(annual.profileDifferenceLeiMwh, " lei/MWh") : "0,00"],
+    ["Consum in top 10% ore scumpe", `${formatMetric(annual.expensiveConsumptionMwh, " MWh")} (${formatPercent(annual.expensiveConsumptionPct)})`],
+    ["Consum in top 10% ore ieftine", `${formatMetric(annual.cheapConsumptionMwh, " MWh")} (${formatPercent(annual.cheapConsumptionPct)})`],
+    ["Pret mediu ore scumpe", hasPrices ? formatMetric(annual.expensiveAveragePriceLeiMwh, " lei/MWh") : "0,00"],
+    ["Pret mediu ore ieftine", hasPrices ? formatMetric(annual.cheapAveragePriceLeiMwh, " lei/MWh") : "0,00"],
+    ["Spread scump / ieftin", hasPrices ? formatMetric(annual.priceSpreadLeiMwh, " lei/MWh") : "0,00"],
+    ["Consum weekday / weekend", `${formatMetric(annual.weekdayMwh, " MWh")} / ${formatMetric(annual.weekendMwh, " MWh")}`],
+  ]);
+
+  fillKeyValueRows("analyticsScoreRows", [
+    ["Sourcing Risk Score", formatPercent(scores.sourcingRiskScore)],
+    ["Price Exposure Score", formatPercent(scores.priceExposureScore)],
+    ["Forecast Risk Score", formatPercent(scores.forecastRiskScore)],
+    ["Peak Risk Score", formatPercent(scores.peakRiskScore)],
+    ["Volatility Score", formatPercent(scores.volatilityScore)],
+    ["Seasonality Score", formatPercent(scores.seasonalityScore)],
+    ["Stability Score", formatPercent(scores.stabilityScore)],
+    ["Flexibility Score", formatPercent(scores.flexibilityScore)],
+    ["PV Fit Score", formatPercent(scores.pvFitScore)],
+    ["BESS Fit Score", formatPercent(scores.bessFitScore)],
+  ]);
+
+  const monthlyBody = $("analyticsMonthlyRows");
+  if (monthlyBody) {
+    monthlyBody.innerHTML = "";
+    (analytics.monthly || []).forEach((row) => {
+      const tr = document.createElement("tr");
+      [
+        row.month,
+        formatMetric(row.consumptionMwh),
+        formatMetric(row.pvMwh),
+        hasPrices ? formatMetric(row.pmpPzuLeiMwh) : "0,00",
+        hasPrices ? formatMetric(row.simplePzuAverageLeiMwh) : "0,00",
+        hasPrices ? formatMetric(row.profileDifferenceLeiMwh) : "0,00",
+        formatMetric(row.expensiveConsumptionMwh),
+        formatMetric(row.cheapConsumptionMwh),
+        formatMetric(row.weekdayMwh),
+        formatMetric(row.weekendMwh),
+      ].forEach((value) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      monthlyBody.appendChild(tr);
+    });
+  }
+
+  const hourlyBody = $("analyticsHourlyRows");
+  if (hourlyBody) {
+    hourlyBody.innerHTML = "";
+    (analytics.hourlyProfile || []).forEach((row) => {
+      const tr = document.createElement("tr");
+      [
+        intervalLabel(row.hour),
+        formatMetric(row.consumptionMwh),
+        formatMetric(row.averageConsumptionMw),
+        formatMetric(row.pvMwh),
+        formatMetric(row.averagePvMw),
+        hasPrices ? formatMetric(row.averagePriceLeiMwh) : "0,00",
+      ].forEach((value) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      hourlyBody.appendChild(tr);
+    });
+  }
+}
+
+function renderExecutiveDashboard(profile, rows = state.lastProfileRows) {
+  if (!$("executiveAnnualConsumption")) return;
+  const metrics = buildExecutiveMetrics(profile, rows);
+  const contract = profileContractData();
+  const opportunity = buildProfileOpportunity(metrics, state.profileAnalytics, contract);
+  window.bessProfileAnalytics = state.profileAnalytics;
+  renderGeneratedSourcingData(state.profileAnalytics);
+  renderProfileRoadmap(metrics, opportunity, contract);
+  renderProcurementDna(profile, metrics, state.profileAnalytics, opportunity, contract, rows);
+  renderAdvancedReport(profile, metrics, state.profileAnalytics, opportunity, contract, rows);
+  $("executiveAnnualConsumption").textContent = numberFormat.format(metrics.totalConsumption);
+  $("executivePmpPzu").textContent = metrics.pmpPzu > 0 ? `${numberFormat.format(metrics.pmpPzu)} lei/MWh` : "0,00";
+  $("executivePeak").textContent = numberFormat.format(metrics.peakMw);
+  $("executiveAverage").textContent = numberFormat.format(metrics.averageMw);
+  $("executiveLoadFactor").textContent = formatPercent(metrics.loadFactorPct);
+  $("executiveDayNight").textContent = `${numberFormat.format(metrics.dayPct)}% / ${numberFormat.format(metrics.nightPct)}%`;
+  $("executiveRiskScore").textContent = metrics.totalConsumption > 0 ? formatPercent(metrics.sourcingRiskScore) : "0%";
+  $("executiveRecommendation").textContent = opportunity.contractRecommendation;
+  $("executiveEfficiencyRecommendation").textContent = opportunity.efficiencyRecommendation;
+  $("executiveStatus").textContent = metrics.pricedHours > 0 ? `PZU: ${state.priceSource}` : "PZU in asteptare";
+
+  const chip = $("executiveRiskChip");
+  const riskClass = metrics.totalConsumption === 0 ? "warn" : metrics.sourcingRiskScore <= 40 ? "ok" : metrics.sourcingRiskScore <= 60 ? "warn" : "error";
+  chip.className = `status-chip ${riskClass}`;
+  chip.textContent = metrics.totalConsumption > 0 ? `Risc ${riskLabel(metrics.sourcingRiskScore)}` : "In asteptare";
+
+  const consumptionChecks = MONTHS.map((_, index) => monthlyCheck("consumption", index));
+  const validationOk = consumptionChecks.every((month) => month.severity !== "error");
+  setRoadmapStep("client", opportunity.clientReady, !opportunity.clientReady);
+  setRoadmapStep("validation", validationOk && metrics.totalConsumption > 0, metrics.totalConsumption > 0 && !validationOk);
+  setRoadmapStep("pzu", metrics.pricedHours > 0, metrics.totalConsumption > 0 && metrics.pricedHours === 0);
+  setRoadmapStep("scoring", metrics.totalConsumption > 0 && metrics.pricedHours > 0);
+  setRoadmapStep("recommendation", opportunity.contractRecommendation !== "Introdu curbe" || opportunity.efficiencyRecommendation !== "Introdu curbe");
+  setRoadmapStep("export", Boolean(state.result));
 }
 
 function renderConsumptionProfile() {
-  if (!$("profileMonthlyRows")) return;
   const profile = buildConsumptionProfile();
   const { totals } = profile;
-  $("profileStatus").textContent = `Consum introdus: ${totals.enteredHours}/${totals.expectedHours} ore`;
-  $("profileYear").textContent = String(selectedYear());
-  $("profileAnnualConsumption").textContent = numberFormat.format(totals.consumptionMwh);
-  $("profileDayConsumption").textContent = numberFormat.format(totals.dayMwh);
-  $("profileNightConsumption").textContent = numberFormat.format(totals.nightMwh);
-  $("profileAnnualPv").textContent = numberFormat.format(totals.pvMwh);
-  $("profilePeakConsumption").textContent = numberFormat.format(totals.peakMw);
-  $("profileAverageConsumption").textContent = numberFormat.format(totals.averageMw);
+  setText("profileStatus", `Consum introdus: ${totals.enteredHours}/${totals.expectedHours} ore`);
+  setText("profileYear", String(selectedYear()));
+  setText("profileAnnualConsumption", numberFormat.format(totals.consumptionMwh));
+  setText("profileDayConsumption", numberFormat.format(totals.dayMwh));
+  setText("profileNightConsumption", numberFormat.format(totals.nightMwh));
+  setText("profileAnnualPv", numberFormat.format(totals.pvMwh));
+  setText("profilePeakConsumption", numberFormat.format(totals.peakMw));
+  setText("profileAverageConsumption", numberFormat.format(totals.averageMw));
+  renderExecutiveDashboard(profile);
 
   const tbody = $("profileMonthlyRows");
-  tbody.innerHTML = "";
-  profile.monthly.forEach((row) => {
-    const tr = document.createElement("tr");
-    [
-      row.month,
-      numberFormat.format(row.consumptionMwh),
-      numberFormat.format(row.dayMwh),
-      numberFormat.format(row.nightMwh),
-      numberFormat.format(row.pvMwh),
-      numberFormat.format(row.peakMw),
-    ].forEach((value) => {
-      const td = document.createElement("td");
-      td.textContent = value;
-      tr.appendChild(td);
+  if (tbody) {
+    tbody.innerHTML = "";
+    profile.monthly.forEach((row) => {
+      const tr = document.createElement("tr");
+      [
+        row.month,
+        numberFormat.format(row.consumptionMwh),
+        numberFormat.format(row.dayMwh),
+        numberFormat.format(row.nightMwh),
+        numberFormat.format(row.pvMwh),
+        numberFormat.format(row.peakMw),
+      ].forEach((value) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
     });
-    tbody.appendChild(tr);
-  });
-  renderCefProfileTable(buildCefProfileRows(totals.consumptionMwh));
+  }
   drawSourcingProfileChart(profile.daily);
   drawConsumptionProfileChart(profile.monthly);
-}
-
-function renderCefProfileTable(rows) {
-  const tbody = $("cefProfileRows");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-  rows.forEach((row) => {
-    const tr = document.createElement("tr");
-    [
-      row.label,
-      row.period,
-      row.interval,
-      String(row.expectedHours),
-      String(row.enteredHours),
-      numberFormat.format(row.totalMwh),
-      numberFormat.format(row.averageMw),
-      numberFormat.format(row.peakMw),
-      `${numberFormat.format(row.sharePct)}%`,
-    ].forEach((value) => {
-      const td = document.createElement("td");
-      td.textContent = value;
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
 }
 
 function scenarioCostSummary(scenario) {
@@ -1774,6 +2961,7 @@ async function exportCompleteReport() {
         financialSummary: summary,
         scenario: clone(scenario),
         scenarios: scenarioCostsFromResult(state.result),
+        procurementDna: clone(state.procurementDna || window.bessProcurementDna || {}),
       }),
     });
     if (!response.ok) {
@@ -2139,6 +3327,1042 @@ function prepareChartCanvas(canvas, fallbackWidth, fallbackHeight) {
   return { ctx, width: cssWidth, height: cssHeight };
 }
 
+function drawProcurementChartFrame(ctx, width, height, title) {
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#0a1d32";
+  ctx.font = "800 17px Montserrat, Arial";
+  ctx.textAlign = "left";
+  ctx.fillText(title, 24, 30);
+}
+
+function drawProcurementRadarChart(items = []) {
+  const canvas = $("procurementRadarChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 560, 340);
+  drawProcurementChartFrame(ctx, width, height, "Procurement DNA Radar");
+  if (!items.length) return;
+
+  const centerX = width / 2;
+  const centerY = height / 2 + 18;
+  const radius = Math.min(width, height) * 0.29;
+  const levels = 4;
+  ctx.strokeStyle = "#d9e3eb";
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "#526b72";
+  ctx.font = "700 10px Montserrat, Arial";
+  ctx.textAlign = "center";
+
+  for (let level = 1; level <= levels; level += 1) {
+    const r = (radius * level) / levels;
+    ctx.beginPath();
+    items.forEach((_, index) => {
+      const angle = -Math.PI / 2 + (index / items.length) * Math.PI * 2;
+      const x = centerX + Math.cos(angle) * r;
+      const y = centerY + Math.sin(angle) * r;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  items.forEach((item, index) => {
+    const angle = -Math.PI / 2 + (index / items.length) * Math.PI * 2;
+    const x = centerX + Math.cos(angle) * radius;
+    const y = centerY + Math.sin(angle) * radius;
+    ctx.strokeStyle = "#d9e3eb";
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.fillStyle = "#526b72";
+    const labelX = centerX + Math.cos(angle) * (radius + 38);
+    const labelY = centerY + Math.sin(angle) * (radius + 28);
+    ctx.fillText(String(item.label || ""), labelX, labelY);
+  });
+
+  ctx.beginPath();
+  items.forEach((item, index) => {
+    const value = clamp(item.value, 0, 100) / 100;
+    const angle = -Math.PI / 2 + (index / items.length) * Math.PI * 2;
+    const x = centerX + Math.cos(angle) * radius * value;
+    const y = centerY + Math.sin(angle) * radius * value;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = "rgba(79, 155, 39, 0.28)";
+  ctx.strokeStyle = "#4f9b27";
+  ctx.lineWidth = 2.5;
+  ctx.fill();
+  ctx.stroke();
+  ctx.textAlign = "left";
+}
+
+function drawProcurementBars(canvasId, title, rows = [], options = {}) {
+  const canvas = $(canvasId);
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, options.fallbackWidth || 560, options.fallbackHeight || 300);
+  drawProcurementChartFrame(ctx, width, height, title);
+  const values = rows.map((row) => Number(row.value) || 0);
+  const max = Math.max(...values, 1);
+  const paddingLeft = 58;
+  const paddingRight = 24;
+  const paddingTop = 58;
+  const paddingBottom = 48;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+  const groupW = rows.length ? plotW / rows.length : plotW;
+  const barW = Math.max(22, Math.min(54, groupW * 0.42));
+
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.lineWidth = 1;
+  for (let index = 0; index <= 4; index += 1) {
+    const y = paddingTop + (plotH / 4) * index;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#cbd6de";
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+
+  rows.forEach((row, index) => {
+    const value = Number(row.value) || 0;
+    const x = paddingLeft + index * groupW + (groupW - barW) / 2;
+    const barH = (value / max) * plotH;
+    const y = height - paddingBottom - barH;
+    ctx.fillStyle = row.color || options.color || "#4f9b27";
+    ctx.fillRect(x, y, barW, barH);
+    ctx.fillStyle = "#0a1d32";
+    ctx.font = "800 11px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(formatMetric(value), x + barW / 2, Math.max(paddingTop + 14, y - 8));
+    ctx.fillStyle = "#526b72";
+    ctx.font = "700 11px Montserrat, Arial";
+    ctx.fillText(String(row.label || ""), x + barW / 2, height - 18);
+  });
+  ctx.textAlign = "left";
+}
+
+function drawProcurementSeasonalityChart(rows = []) {
+  const canvas = $("procurementSeasonalityChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 560, 300);
+  drawProcurementChartFrame(ctx, width, height, "Monthly Seasonality");
+  const values = rows.map((row) => Number(row.value) || 0);
+  const max = Math.max(...values, 1);
+  const paddingLeft = 58;
+  const paddingRight = 24;
+  const paddingTop = 58;
+  const paddingBottom = 48;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.lineWidth = 1;
+  for (let index = 0; index <= 4; index += 1) {
+    const y = paddingTop + (plotH / 4) * index;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#cbd6de";
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#4f9b27";
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  rows.forEach((row, index) => {
+    const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
+    const y = height - paddingBottom - ((Number(row.value) || 0) / max) * plotH;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  rows.forEach((row, index) => {
+    const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
+    const y = height - paddingBottom - ((Number(row.value) || 0) / max) * plotH;
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#4f9b27";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#526b72";
+    ctx.font = "700 10px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(MONTH_SHORT[index] || String(row.label || ""), x, height - 18);
+  });
+  ctx.textAlign = "left";
+}
+
+function drawProcurementLoadDurationChart(loadDna) {
+  const canvas = $("procurementLoadDurationChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 1120, 360);
+  drawProcurementChartFrame(ctx, width, height, "Load Duration Curve");
+  const points = loadDna?.points || [];
+  const max = Math.max(...points.map((point) => Number(point.value) || 0), 1);
+  const paddingLeft = 64;
+  const paddingRight = 30;
+  const paddingTop = 62;
+  const paddingBottom = 52;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.lineWidth = 1;
+  for (let index = 0; index <= 4; index += 1) {
+    const y = paddingTop + (plotH / 4) * index;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#cbd6de";
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+
+  ctx.fillStyle = "#526b72";
+  ctx.font = "700 11px Montserrat, Arial";
+  ctx.textAlign = "left";
+  ctx.fillText("Consum MW", 24, paddingTop - 16);
+  ctx.textAlign = "center";
+  ctx.fillText("Ore sortate descrescator", paddingLeft + plotW / 2, height - 15);
+
+  if (!points.length) {
+    ctx.fillStyle = "#526b72";
+    ctx.font = "800 14px Montserrat, Arial";
+    ctx.fillText("Curba orara de consum este necesara pentru generare.", paddingLeft + plotW / 2, paddingTop + plotH / 2);
+    ctx.textAlign = "left";
+    return;
+  }
+
+  ctx.strokeStyle = "#4f9b27";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const x = paddingLeft + (points.length === 1 ? 0 : (plotW / (points.length - 1)) * index);
+    const y = height - paddingBottom - ((Number(point.value) || 0) / max) * plotH;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  const refs = [
+    { label: "Baseload", value: loadDna.baseloadMw, color: "#2b6cb0" },
+    { label: "Midload", value: loadDna.midloadMw, color: "#8aa3b8" },
+    { label: "Peakload", value: loadDna.peakloadMw, color: "#c65050" },
+  ].filter((item) => Number.isFinite(item.value));
+  refs.forEach((item, index) => {
+    const y = height - paddingBottom - (item.value / max) * plotH;
+    ctx.strokeStyle = item.color;
+    ctx.setLineDash([7, 6]);
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = item.color;
+    ctx.font = "800 11px Montserrat, Arial";
+    ctx.textAlign = "right";
+    ctx.fillText(`${item.label}: ${numberFormat.format(item.value)}`, width - paddingRight - 8, y - 6 - index * 2);
+  });
+  ctx.textAlign = "left";
+}
+
+function drawProcurementTopCostChart(costDna) {
+  const canvas = $("procurementTopCostChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 560, 360);
+  drawProcurementChartFrame(ctx, width, height, "Top 10 Cost Hours");
+  const rows = costDna?.top10 || [];
+  const max = Math.max(...rows.map((row) => Number(row.cost) || 0), 1);
+  const paddingLeft = 148;
+  const paddingRight = 26;
+  const paddingTop = 58;
+  const paddingBottom = 28;
+  const plotW = width - paddingLeft - paddingRight;
+  const rowH = rows.length ? (height - paddingTop - paddingBottom) / rows.length : 24;
+  if (!rows.length) {
+    ctx.fillStyle = "#526b72";
+    ctx.font = "800 14px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Cost DNA indisponibil fara consum si preturi PZU.", width / 2, height / 2);
+    ctx.textAlign = "left";
+    return;
+  }
+
+  rows.forEach((row, index) => {
+    const y = paddingTop + index * rowH + rowH * 0.18;
+    const barH = Math.max(8, rowH * 0.58);
+    const barW = ((Number(row.cost) || 0) / max) * plotW;
+    ctx.fillStyle = "#4f9b27";
+    ctx.fillRect(paddingLeft, y, barW, barH);
+    ctx.fillStyle = "#0a1d32";
+    ctx.font = "800 10px Montserrat, Arial";
+    ctx.textAlign = "right";
+    ctx.fillText(String(row.timestamp || "").replace(":00", ""), paddingLeft - 10, y + barH * 0.72);
+    ctx.textAlign = "left";
+    ctx.fillText(formatLei(row.cost), paddingLeft + barW + 8, y + barH * 0.72);
+  });
+  ctx.textAlign = "left";
+}
+
+function drawProcurementCostDistributionChart(costDna) {
+  const rows = (costDna?.distribution || []).map((row, index) => ({
+    ...row,
+    color: ["#2b6cb0", "#8aa3b8", "#c65050"][index] || "#4f9b27",
+  }));
+  drawProcurementBars("procurementCostDistributionChart", "Cost Distribution", rows, { color: "#4f9b27" });
+}
+
+function drawProcurementDnaCharts(dna) {
+  if (!dna) return;
+  drawProcurementLoadDurationChart(dna.loadDna);
+  drawProcurementTopCostChart(dna.costDna);
+  drawProcurementCostDistributionChart(dna.costDna);
+}
+
+const ADVANCED_CHART_IDS = [
+  "reportConsumptionHeatmap",
+  "reportDailyCurveChart",
+  "reportIntervalChart",
+  "reportPzuHeatmap",
+  "reportConsumptionPriceScatter",
+  "reportPmpVsAverageChart",
+  "reportCostDistributionChart",
+  "reportTopCostHoursChart",
+  "reportMonthlyCostChart",
+  "reportSolarOpportunityChart",
+  "reportStorageOpportunityChart",
+  "reportPeakShavingChart",
+];
+
+function sumRowsMwh(rows = [], predicate = () => true) {
+  return rows.reduce((sum, row, index) => {
+    if (!predicate(row, index)) return sum;
+    return sum + (Number(row.consumption_mwh) || 0);
+  }, 0);
+}
+
+function priceRowsWithCost(rows = []) {
+  return rows
+    .map((row, index) => {
+      const consumption = Number(row.consumption_mwh);
+      const price = Number(row.price_lei_mwh);
+      if (!Number.isFinite(consumption) || consumption <= 0 || !Number.isFinite(price) || Math.abs(price) <= 0) return null;
+      return {
+        ...row,
+        index,
+        consumption,
+        price,
+        cost: consumption * price,
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildAdvancedReportData(profile, metrics, analytics, opportunity, contract, rows = state.lastProfileRows) {
+  const annual = analytics?.annual || {};
+  const hourlyProfile = analytics?.hourlyProfile || [];
+  const monthly = analytics?.monthly || [];
+  const scores = analytics?.scores || {};
+  const procurementDna = state.procurementDna || buildProcurementDna(profile, metrics, analytics, opportunity, contract, rows);
+  const loadDna = procurementDna.loadDna || buildLoadDna(rows);
+  const costDna = procurementDna.costDna || buildCostDna(rows);
+  const validConsumptionRows = rows.filter((row) => Number(row.consumption_mwh) > 0);
+  const hasConsumption = validConsumptionRows.length > 0;
+  const hasPrices = priceRowsWithCost(rows).length > 0;
+  const totalConsumption = metrics.totalConsumption || annual.consumptionMwh || 0;
+  const intervalRows = [
+    { label: "00:00-06:00", start: 0, end: 6, color: "#2b6cb0" },
+    { label: "06:00-12:00", start: 6, end: 12, color: "#8aa3b8" },
+    { label: "12:00-18:00", start: 12, end: 18, color: "#78bd35" },
+    { label: "18:00-24:00", start: 18, end: 24, color: "#c65050" },
+  ].map((interval) => {
+    const mwh = sumRowsMwh(rows, (row, index) => {
+      const hour = rowHour(row, index);
+      return hour >= interval.start && hour < interval.end;
+    });
+    return {
+      ...interval,
+      mwh,
+      value: totalConsumption > 0 ? (mwh / totalConsumption) * 100 : 0,
+    };
+  });
+  const solarMwh = sumRowsMwh(rows, (row, index) => {
+    const hour = rowHour(row, index);
+    return hour >= 8 && hour < 18;
+  });
+  const eveningMwh = sumRowsMwh(rows, (row, index) => {
+    const hour = rowHour(row, index);
+    return hour >= 18 && hour < 22;
+  });
+  const solarShare = totalConsumption > 0 ? (solarMwh / totalConsumption) * 100 : 0;
+  const eveningShare = totalConsumption > 0 ? (eveningMwh / totalConsumption) * 100 : 0;
+  const costMonthly = MONTHS.map((month, monthIndex) => {
+    const monthRows = priceRowsWithCost(rows).filter((row) => rowDateParts(row, row.index).monthIndex === monthIndex);
+    return {
+      label: MONTH_SHORT[monthIndex],
+      value: monthRows.reduce((sum, row) => sum + row.cost, 0),
+    };
+  });
+  const cheapMwh = annual.cheapConsumptionMwh || 0;
+  const expensiveMwh = annual.expensiveConsumptionMwh || 0;
+  const pzuAdvantage = hasPrices ? (annual.pmpPzuLeiMwh || 0) - (annual.simplePzuAverageLeiMwh || 0) : 0;
+  const dayMwh = annual.dayMwh || profile.totals.dayMwh || 0;
+  const nightMwh = annual.nightMwh || profile.totals.nightMwh || 0;
+  const dayPct = totalConsumption > 0 ? (dayMwh / totalConsumption) * 100 : 0;
+  const nightPct = totalConsumption > 0 ? (nightMwh / totalConsumption) * 100 : 0;
+  return {
+    generatedAt: new Date().toISOString(),
+    contract,
+    profile,
+    metrics,
+    analytics,
+    opportunity,
+    procurementDna,
+    loadDna,
+    costDna,
+    rows,
+    hasConsumption,
+    hasPrices,
+    validConsumptionHours: validConsumptionRows.length,
+    lowHoursWarning: validConsumptionRows.length > 0 && validConsumptionRows.length < 500,
+    hourlyProfile,
+    monthly,
+    intervalRows,
+    solarShare,
+    solarMwh,
+    eveningShare,
+    eveningMwh,
+    costMonthly,
+    cheapMwh,
+    expensiveMwh,
+    pzuAdvantage,
+    annual,
+    scores,
+    dayMwh,
+    nightMwh,
+    dayPct,
+    nightPct,
+    consumptionText:
+      solarShare >= 50
+        ? "Consumul este concentrat in intervalul diurn, ceea ce indica potential ridicat pentru autoconsum fotovoltaic."
+        : eveningShare >= 15
+          ? "Consumul relevant in intervalul de seara poate justifica analiza unei solutii de stocare energetica."
+          : "Profilul mediu zilnic evidentiaza intervalele in care consumul este concentrat, permitand identificarea varfurilor operationale si a potentialului de optimizare.",
+    marketText: !hasPrices
+      ? "Preturile PZU sunt necesare pentru analiza costului si profilului de piata."
+      : pzuAdvantage <= 0
+        ? "Profilul de consum avantajeaza clientul in raport cu media pietei, deoarece consumul este aliniat partial cu intervale de pret mai redus."
+        : "Profilul de consum penalizeaza clientul fata de media pietei, ceea ce indica expunere in intervale orare cu pret ridicat.",
+    costText: costDnaText(costDna.concentrationIndex, costDna.available),
+    opportunityText:
+      `Ponderea consumului in intervalul solar este ${numberFormat.format(solarShare)}%, iar consumul de seara este ${numberFormat.format(eveningShare)}%. ` +
+      "Diferenta dintre sarcina de baza si varful maxim indica potentialul de reducere a varfurilor de consum si optimizare ATR.",
+  };
+}
+
+function colorScale(stops, pct) {
+  const value = clamp(pct, 0, 1);
+  const scaled = value * (stops.length - 1);
+  const index = Math.min(stops.length - 2, Math.floor(scaled));
+  const local = scaled - index;
+  const start = stops[index];
+  const end = stops[index + 1];
+  const mix = (a, b) => Math.round(a + (b - a) * local);
+  return `rgb(${mix(start[0], end[0])}, ${mix(start[1], end[1])}, ${mix(start[2], end[2])})`;
+}
+
+const CONSUMPTION_HEATMAP_STOPS = [
+  [239, 246, 255],
+  [96, 165, 250],
+  [250, 204, 21],
+  [249, 115, 22],
+  [185, 28, 28],
+];
+
+const PZU_HEATMAP_STOPS = [
+  [219, 234, 254],
+  [34, 197, 94],
+  [250, 204, 21],
+  [249, 115, 22],
+  [127, 29, 29],
+];
+
+function drawReportHeatmap(canvasId, title, rows, valueGetter, colorStops) {
+  const canvas = $(canvasId);
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 1120, 360);
+  drawProcurementChartFrame(ctx, width, height, title);
+  const values = rows
+    .map((row, index) => valueGetter(row, index))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const max = Math.max(...values, 1);
+  const paddingLeft = 46;
+  const paddingRight = 24;
+  const paddingTop = 56;
+  const paddingBottom = 42;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+  const cellW = plotW / 365;
+  const cellH = plotH / 24;
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(paddingLeft, paddingTop, plotW, plotH);
+  rows.forEach((row, index) => {
+    const value = valueGetter(row, index);
+    if (!Number.isFinite(value) || value <= 0) return;
+    const parts = rowDateParts(row, index);
+    const dayIndex = daysBeforeMonth(parts.monthIndex) + Math.max(0, parts.day - 1);
+    const x = paddingLeft + dayIndex * cellW;
+    const y = paddingTop + parts.hour * cellH;
+    const pct = Math.sqrt(clamp(value / max, 0, 1));
+    ctx.fillStyle = colorStops(pct);
+    ctx.fillRect(x, y, Math.max(1, cellW), Math.max(1, cellH));
+  });
+  ctx.strokeStyle = "#d9e3eb";
+  ctx.strokeRect(paddingLeft, paddingTop, plotW, plotH);
+  ctx.fillStyle = "#526b72";
+  ctx.font = "700 10px Montserrat, Arial";
+  ctx.textAlign = "right";
+  [0, 6, 12, 18, 23].forEach((hour) => {
+    const y = paddingTop + hour * cellH + 4;
+    ctx.fillText(String(hour).padStart(2, "0"), paddingLeft - 8, y);
+  });
+  let dayOffset = 0;
+  MONTHS.forEach((month, monthIndex) => {
+    const days = monthDays(monthIndex);
+    const x = paddingLeft + dayOffset * cellW + (days * cellW) / 2;
+    ctx.textAlign = "center";
+    ctx.fillText(MONTH_SHORT[monthIndex].toUpperCase(), x, height - 16);
+    dayOffset += days;
+  });
+  const legendX = width - paddingRight - 180;
+  const legendY = 28;
+  const legendW = 150;
+  const legendH = 9;
+  for (let index = 0; index < legendW; index += 1) {
+    ctx.fillStyle = colorStops(index / (legendW - 1));
+    ctx.fillRect(legendX + index, legendY, 1, legendH);
+  }
+  ctx.fillStyle = "#526b72";
+  ctx.font = "800 10px Montserrat, Arial";
+  ctx.textAlign = "left";
+  ctx.fillText("Min", legendX, legendY + 22);
+  ctx.textAlign = "right";
+  ctx.fillText("Max", legendX + legendW, legendY + 22);
+  ctx.textAlign = "left";
+}
+
+function drawReportDailyCurve(hourlyProfile = []) {
+  const canvas = $("reportDailyCurveChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 560, 320);
+  drawProcurementChartFrame(ctx, width, height, "Curba medie zilnica de consum");
+  const rows = hourlyProfile.map((row) => ({ label: String(row.hour).padStart(2, "0"), value: Number(row.averageConsumptionMw) || 0 }));
+  drawSimpleLine(ctx, width, height, rows, "#4f9b27", "MW mediu");
+}
+
+function drawSimpleLine(ctx, width, height, rows, color, yLabel) {
+  const max = Math.max(...rows.map((row) => Number(row.value) || 0), 1);
+  const paddingLeft = 54;
+  const paddingRight = 24;
+  const paddingTop = 58;
+  const paddingBottom = 44;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.lineWidth = 1;
+  for (let index = 0; index <= 4; index += 1) {
+    const y = paddingTop + (plotH / 4) * index;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#cbd6de";
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+  ctx.fillStyle = "#526b72";
+  ctx.font = "700 11px Montserrat, Arial";
+  ctx.fillText(yLabel, 24, paddingTop - 18);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  rows.forEach((row, index) => {
+    const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
+    const y = height - paddingBottom - ((Number(row.value) || 0) / max) * plotH;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  rows.forEach((row, index) => {
+    if (index % Math.ceil(rows.length / 8) !== 0 && index !== rows.length - 1) return;
+    const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
+    ctx.fillStyle = "#526b72";
+    ctx.font = "700 10px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(String(row.label || ""), x, height - 16);
+  });
+  ctx.textAlign = "left";
+}
+
+function drawReportScatter(rows = []) {
+  const canvas = $("reportConsumptionPriceScatter");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 560, 340);
+  drawProcurementChartFrame(ctx, width, height, "Consum vs Pret PZU");
+  const valid = priceRowsWithCost(rows);
+  const sample = valid.length > 900 ? valid.filter((_, index) => index % Math.ceil(valid.length / 900) === 0) : valid;
+  const maxPrice = Math.max(...valid.map((row) => row.price), 1);
+  const maxConsumption = Math.max(...valid.map((row) => row.consumption), 1);
+  const paddingLeft = 56;
+  const paddingRight = 24;
+  const paddingTop = 58;
+  const paddingBottom = 48;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+  ctx.fillStyle = "#526b72";
+  ctx.font = "700 11px Montserrat, Arial";
+  ctx.fillText("MWh", 24, paddingTop - 18);
+  ctx.textAlign = "center";
+  ctx.fillText("Pret PZU lei/MWh", paddingLeft + plotW / 2, height - 14);
+  sample.forEach((row) => {
+    const x = paddingLeft + (row.price / maxPrice) * plotW;
+    const y = height - paddingBottom - (row.consumption / maxConsumption) * plotH;
+    ctx.fillStyle = "rgba(79, 155, 39, 0.38)";
+    ctx.beginPath();
+    ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.textAlign = "left";
+}
+
+function drawReportPmpVsAverage(monthly = []) {
+  const canvas = $("reportPmpVsAverageChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 560, 340);
+  drawProcurementChartFrame(ctx, width, height, "PMP Client vs Media PZU");
+  const rows = monthly.map((row, index) => ({
+    label: MONTH_SHORT[index],
+    pmp: Number(row.pmpPzuLeiMwh) || 0,
+    avg: Number(row.simplePzuAverageLeiMwh) || 0,
+  }));
+  const max = Math.max(...rows.flatMap((row) => [row.pmp, row.avg]), 1);
+  const paddingLeft = 56;
+  const paddingRight = 24;
+  const paddingTop = 62;
+  const paddingBottom = 48;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+  ctx.strokeStyle = "#d8e0e7";
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+  [
+    { key: "pmp", color: "#4f9b27", label: "PMP Client" },
+    { key: "avg", color: "#8aa3b8", label: "Media PZU" },
+  ].forEach((serie, serieIndex) => {
+    ctx.strokeStyle = serie.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    rows.forEach((row, index) => {
+      const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
+      const y = height - paddingBottom - ((Number(row[serie.key]) || 0) / max) * plotH;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = serie.color;
+    ctx.fillRect(paddingLeft + serieIndex * 126, 42, 12, 12);
+    ctx.fillStyle = "#526b72";
+    ctx.font = "700 11px Montserrat, Arial";
+    ctx.fillText(serie.label, paddingLeft + 18 + serieIndex * 126, 52);
+  });
+  rows.forEach((row, index) => {
+    const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
+    ctx.fillStyle = "#526b72";
+    ctx.font = "700 10px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(row.label, x, height - 16);
+  });
+  ctx.textAlign = "left";
+}
+
+function drawReportTopCostHours(costDna) {
+  const canvas = $("reportTopCostHoursChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 560, 360);
+  drawProcurementChartFrame(ctx, width, height, "Top 10 ore cu cel mai mare cost");
+  const rows = costDna?.top10 || [];
+  const max = Math.max(...rows.map((row) => Number(row.cost) || 0), 1);
+  const paddingLeft = 150;
+  const paddingRight = 28;
+  const paddingTop = 58;
+  const paddingBottom = 26;
+  const plotW = width - paddingLeft - paddingRight;
+  const rowH = rows.length ? (height - paddingTop - paddingBottom) / rows.length : 24;
+  if (!rows.length) {
+    ctx.fillStyle = "#526b72";
+    ctx.font = "800 14px Montserrat, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Preturile PZU sunt necesare pentru analiza costului.", width / 2, height / 2);
+    ctx.textAlign = "left";
+    return;
+  }
+  rows.forEach((row, index) => {
+    const y = paddingTop + index * rowH + rowH * 0.18;
+    const barH = Math.max(8, rowH * 0.58);
+    const barW = ((Number(row.cost) || 0) / max) * plotW;
+    ctx.fillStyle = "#4f9b27";
+    ctx.fillRect(paddingLeft, y, barW, barH);
+    ctx.fillStyle = "#0a1d32";
+    ctx.font = "800 10px Montserrat, Arial";
+    ctx.textAlign = "right";
+    ctx.fillText(String(row.timestamp || "").replace(":00", ""), paddingLeft - 10, y + barH * 0.72);
+    ctx.textAlign = "left";
+    ctx.fillText(formatLei(row.cost), paddingLeft + barW + 8, y + barH * 0.72);
+  });
+  ctx.textAlign = "left";
+}
+
+function drawAdvancedReportCharts(data) {
+  if (!data) return;
+  drawReportHeatmap(
+    "reportConsumptionHeatmap",
+    "Heatmap consum 24h x 365 zile",
+    data.rows,
+    (row) => Number(row.consumption_mwh) || 0,
+    (pct) => colorScale(CONSUMPTION_HEATMAP_STOPS, pct),
+  );
+  drawReportDailyCurve(data.hourlyProfile);
+  drawProcurementBars("reportIntervalChart", "Consum pe intervale orare", data.intervalRows, { color: "#4f9b27" });
+  if (data.hasPrices) {
+    drawReportHeatmap(
+      "reportPzuHeatmap",
+      "Heatmap PZU",
+      data.rows,
+      (row) => Number(row.price_lei_mwh) || 0,
+      (pct) => colorScale(PZU_HEATMAP_STOPS, pct),
+    );
+    drawReportScatter(data.rows);
+    drawReportPmpVsAverage(data.monthly);
+    drawProcurementBars("reportCostDistributionChart", "Distributia costului pe categorii PZU", data.costDna.distribution || [], { color: "#4f9b27" });
+    drawReportTopCostHours(data.costDna);
+    drawProcurementBars("reportMonthlyCostChart", "Cost lunar estimat", data.costMonthly, { color: "#4f9b27", fallbackWidth: 1120, fallbackHeight: 340 });
+  }
+  drawProcurementBars("reportSolarOpportunityChart", "Solar Opportunity", [
+    { label: "Consum 08-18", value: data.solarMwh, color: "#f0c23a" },
+    { label: "Restul zilei", value: Math.max(0, data.metrics.totalConsumption - data.solarMwh), color: "#8aa3b8" },
+  ]);
+  drawProcurementBars("reportStorageOpportunityChart", "Storage Opportunity", [
+    { label: "Ore ieftine", value: data.cheapMwh, color: "#2b6cb0" },
+    { label: "Ore scumpe", value: data.expensiveMwh, color: "#c65050" },
+    { label: "18-22", value: data.eveningMwh, color: "#4f9b27" },
+  ]);
+  drawProcurementBars(
+    "reportPeakShavingChart",
+    "Peak Shaving Potential",
+    [
+      { label: "Baseload", value: data.loadDna.baseloadMw || 0, color: "#2b6cb0" },
+      { label: "Midload", value: data.loadDna.midloadMw || 0, color: "#8aa3b8" },
+      { label: "Peakload", value: data.loadDna.peakloadMw || 0, color: "#c65050" },
+    ],
+    { fallbackWidth: 1120, fallbackHeight: 320 },
+  );
+}
+
+function renderAdvancedReport(profile, metrics, analytics, opportunity, contract, rows = state.lastProfileRows) {
+  if (!$("advancedReportStatus")) return;
+  const data = buildAdvancedReportData(profile, metrics, analytics, opportunity, contract, rows);
+  state.advancedReport = data;
+  window.bessAdvancedReport = data;
+  const status = !data.hasConsumption
+    ? "Curba orara de consum este necesara pentru generarea diagramelor."
+    : data.lowHoursWarning
+      ? "Numar redus de ore disponibile. Interpretarile pot avea acuratete limitata."
+      : data.hasPrices
+        ? "Diagrame generate din curbe consolidate si PZU."
+        : "Preturile PZU sunt necesare pentru analiza costului si profilului de piata.";
+  setText("advancedReportStatus", status);
+  setText("reportAnnualConsumption", numberFormat.format(data.metrics.totalConsumption || 0));
+  setText("reportPmpClient", data.hasPrices ? numberFormat.format(data.annual.pmpPzuLeiMwh || 0) : "0,00");
+  setText("reportPzuAverage", data.hasPrices ? numberFormat.format(data.annual.simplePzuAverageLeiMwh || 0) : "0,00");
+  setText("reportCostConcentration", Number.isFinite(data.costDna.concentrationIndex) ? formatPercent(data.costDna.concentrationIndex) : "Indisponibil");
+  setText("reportSolarFit", formatPercent(data.solarShare));
+  setText("reportStorageFit", formatPercent(data.scores.bessFitScore || 0));
+  setText("reportConsumptionText", data.consumptionText);
+  setText("reportMarketText", data.marketText);
+  setText("reportCostText", data.costText);
+  setText("reportOpportunityText", data.opportunityText);
+  $("advancedMarketSection")?.classList.toggle("is-hidden", !data.hasPrices);
+  $("advancedCostSection")?.classList.toggle("is-hidden", !data.hasPrices);
+  drawAdvancedReportCharts(data);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function visibleChartImages() {
+  return ADVANCED_CHART_IDS.map((id) => {
+    const canvas = $(id);
+    if (!canvas || canvas.closest(".is-hidden") || canvas.clientWidth <= 0 || canvas.clientHeight <= 0) return null;
+    return { id, title: canvas.closest(".advanced-report-section")?.querySelector("h3")?.textContent?.trim() || id, src: canvas.toDataURL("image/png") };
+  }).filter(Boolean);
+}
+
+function generateAdvancedPdfReport() {
+  renderConsumptionProfile();
+  const data = state.advancedReport;
+  if (!data) return;
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    setMessages(["Browserul a blocat fereastra de raport. Permite pop-up pentru a genera PDF."], true);
+    return;
+  }
+  const contract = data.contract || {};
+  const chartImages = visibleChartImages();
+  const img = (id, caption) => {
+    const image = chartImages.find((item) => item.id === id);
+    return image ? `<figure><img src="${image.src}" alt="${escapeHtml(caption)}" /><figcaption>${escapeHtml(caption)}</figcaption></figure>` : "";
+  };
+  const html = `<!doctype html>
+    <html lang="ro">
+      <head>
+        <meta charset="utf-8" />
+        <title>Raport profil consum - ${escapeHtml(contract.clientName || "Client")}</title>
+        <style>
+          @page { size: A4 landscape; margin: 12mm; }
+          body { margin: 0; color: #0a1d32; background: #ffffff; font-family: Arial, sans-serif; }
+          .page { page-break-after: always; padding: 12px 0; }
+          .page:last-child { page-break-after: auto; }
+          h1 { margin: 0 0 8px; font-size: 26px; }
+          h2 { margin: 0 0 12px; padding: 8px 10px; background: #06152c; color: #fff; border-radius: 4px; font-size: 18px; }
+          h3 { margin: 10px 0 6px; font-size: 15px; }
+          p { font-size: 13px; line-height: 1.45; }
+          .brand { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #4f9b27; padding-bottom: 10px; margin-bottom: 12px; }
+          .brand strong { font-size: 22px; }
+          .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+          .kpi { border: 1px solid #d9e3eb; background: #f6faf7; border-radius: 5px; padding: 9px; }
+          .kpi span { display: block; color: #526b72; font-size: 11px; font-weight: 700; }
+          .kpi strong { display: block; margin-top: 4px; font-size: 17px; }
+          figure { margin: 8px 0; border: 1px solid #d9e3eb; border-radius: 5px; padding: 6px; }
+          figure img { width: 100%; display: block; }
+          figcaption { margin-top: 4px; color: #526b72; font-size: 11px; font-weight: 700; }
+          .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+          ul { margin-top: 8px; }
+          li { margin-bottom: 6px; font-size: 13px; }
+        </style>
+      </head>
+      <body>
+        <section class="page">
+          <div class="brand"><strong>SIMULATOR BESS</strong><span>${escapeHtml(dateTimeFormat.format(new Date()))}</span></div>
+          <h1>Executive Summary</h1>
+          <h2>Dashboard Executive</h2>
+          <div class="grid">
+            <div class="kpi"><span>Client</span><strong>${escapeHtml(contract.clientName || "Client")}</strong></div>
+            <div class="kpi"><span>Perioada analizata</span><strong>${selectedYear()}</strong></div>
+            <div class="kpi"><span>Consum anual</span><strong>${numberFormat.format(data.metrics.totalConsumption || 0)} MWh</strong></div>
+            <div class="kpi"><span>PMP Client</span><strong>${data.hasPrices ? numberFormat.format(data.annual.pmpPzuLeiMwh || 0) : "N/A"} lei/MWh</strong></div>
+            <div class="kpi"><span>Consum zi</span><strong>${numberFormat.format(data.dayMwh)} MWh / ${numberFormat.format(data.dayPct)}%</strong></div>
+            <div class="kpi"><span>Consum noapte</span><strong>${numberFormat.format(data.nightMwh)} MWh / ${numberFormat.format(data.nightPct)}%</strong></div>
+            <div class="kpi"><span>Varf consum</span><strong>${numberFormat.format(data.metrics.peakMw || 0)} MW</strong></div>
+            <div class="kpi"><span>Medie orara</span><strong>${numberFormat.format(data.metrics.averageMw || 0)} MW</strong></div>
+            <div class="kpi"><span>Load factor</span><strong>${numberFormat.format(data.metrics.loadFactorPct || 0)}%</strong></div>
+            <div class="kpi"><span>Scor risc sourcing</span><strong>${numberFormat.format(data.metrics.sourcingRiskScore || 0)}%</strong></div>
+            <div class="kpi"><span>Procurement DNA</span><strong>${escapeHtml(data.procurementDna.finalOutput || "-")}</strong></div>
+            <div class="kpi"><span>Recomandare contract</span><strong>${escapeHtml(data.procurementDna.contractRecommendation || "-")}</strong></div>
+            <div class="kpi"><span>Recomandare eficientizare</span><strong>${escapeHtml(data.opportunity.efficiencyRecommendation || "-")}</strong></div>
+            <div class="kpi"><span>Cost Concentration</span><strong>${Number.isFinite(data.costDna.concentrationIndex) ? numberFormat.format(data.costDna.concentrationIndex) : "N/A"}</strong></div>
+          </div>
+          <p>${escapeHtml(data.procurementDna.reportText || data.consumptionText)}</p>
+        </section>
+        <section class="page">
+          <h2>Profil consum</h2>
+          ${img("reportConsumptionHeatmap", "Heatmap consum 24h x 365 zile")}
+          <div class="two">${img("reportDailyCurveChart", "Curba medie zilnica")}${img("reportIntervalChart", "Consum pe intervale orare")}</div>
+          <p>${escapeHtml(data.consumptionText)}</p>
+        </section>
+        <section class="page">
+          <h2>Profil piata si achizitie</h2>
+          ${data.hasPrices ? `${img("reportPzuHeatmap", "Heatmap PZU")}<div class="two">${img("reportConsumptionPriceScatter", "Consum vs Pret PZU")}${img("reportPmpVsAverageChart", "PMP Client vs Media PZU")}</div>` : ""}
+          <p>${escapeHtml(data.marketText)}</p>
+        </section>
+        <section class="page">
+          <h2>Profil cost</h2>
+          ${data.hasPrices ? `<div class="two">${img("reportCostDistributionChart", "Cost Distribution")}${img("reportTopCostHoursChart", "Top Cost Hours")}</div>${img("reportMonthlyCostChart", "Cost lunar estimat")}` : ""}
+          <p>${escapeHtml(data.costText)}</p>
+        </section>
+        <section class="page">
+          <h2>Oportunitati</h2>
+          <div class="two">${img("reportSolarOpportunityChart", "Solar Opportunity")}${img("reportStorageOpportunityChart", "Storage Opportunity")}</div>
+          ${img("reportPeakShavingChart", "Peak Shaving Potential")}
+          <p>${escapeHtml(data.opportunityText)}</p>
+        </section>
+        <section class="page">
+          <h2>Concluzie</h2>
+          <ul>
+            <li><strong>Recomandare principala:</strong> ${escapeHtml(data.procurementDna.contractRecommendation || "-")}</li>
+            <li><strong>Urmatorii pasi:</strong> validare profil orar complet, scenariu contractual si analiza oportunitati tehnice.</li>
+            <li><strong>Observatie comerciala:</strong> raportul este orientativ si se bazeaza pe datele introduse in curbele consolidate si preturile PZU disponibile.</li>
+          </ul>
+        </section>
+        <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
+      </body>
+    </html>`;
+  popup.document.open();
+  popup.document.write(html);
+  popup.document.close();
+}
+
+function exportAdvancedDataCsv() {
+  renderConsumptionProfile();
+  const data = state.advancedReport;
+  if (!data) return;
+  const table = (title, headers, rows) => `
+    <h2>${escapeHtml(title)}</h2>
+    <table>
+      <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+      <tbody>${rows
+        .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`)
+        .join("")}</tbody>
+    </table>`;
+  const executiveRows = [
+    ["Client", data.contract.clientName || "Client"],
+    ["Consum anual MWh", numberFormat.format(data.metrics.totalConsumption || 0)],
+    ["Consum zi MWh", numberFormat.format(data.dayMwh)],
+    ["Consum zi %", numberFormat.format(data.dayPct)],
+    ["Consum noapte MWh", numberFormat.format(data.nightMwh)],
+    ["Consum noapte %", numberFormat.format(data.nightPct)],
+    ["PMP Client lei/MWh", data.hasPrices ? numberFormat.format(data.annual.pmpPzuLeiMwh || 0) : "N/A"],
+    ["Media PZU lei/MWh", data.hasPrices ? numberFormat.format(data.annual.simplePzuAverageLeiMwh || 0) : "N/A"],
+    ["Varf consum MW", numberFormat.format(data.metrics.peakMw || 0)],
+    ["Medie orara MW", numberFormat.format(data.metrics.averageMw || 0)],
+    ["Load factor %", numberFormat.format(data.metrics.loadFactorPct || 0)],
+    ["Procurement DNA", data.procurementDna.finalOutput || "-"],
+    ["Recomandare contract", data.procurementDna.contractRecommendation || "-"],
+    ["Recomandare eficientizare", data.opportunity.efficiencyRecommendation || "-"],
+  ];
+  const monthlyRows = data.monthly.map((row) => [
+    row.month,
+    numberFormat.format(row.consumptionMwh || 0),
+    numberFormat.format(row.pvMwh || 0),
+    data.hasPrices ? numberFormat.format(row.pmpPzuLeiMwh || 0) : "N/A",
+    data.hasPrices ? numberFormat.format(row.simplePzuAverageLeiMwh || 0) : "N/A",
+    numberFormat.format(row.expensiveConsumptionMwh || 0),
+    numberFormat.format(row.cheapConsumptionMwh || 0),
+    numberFormat.format(row.weekdayMwh || 0),
+    numberFormat.format(row.weekendMwh || 0),
+  ]);
+  const intervalRows = data.intervalRows.map((row) => [
+    row.label,
+    numberFormat.format(row.mwh || 0),
+    numberFormat.format(row.value || 0),
+  ]);
+  const hourlyRows = data.rows.map((row, index) => {
+    const parts = rowDateParts(row, index);
+    const hour = parts.hour;
+    const consumption = Number(row.consumption_mwh) || 0;
+    const pv = Number(row.pv_mwh) || 0;
+    const price = Number(row.price_lei_mwh) || 0;
+    const cost = consumption * price;
+    const interval =
+      hour < 6 ? "00:00-06:00" : hour < 12 ? "06:00-12:00" : hour < 18 ? "12:00-18:00" : "18:00-24:00";
+    return [
+      row.timestamp || `${selectedYear()}-${String(parts.monthIndex + 1).padStart(2, "0")}-${String(parts.day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:00`,
+      MONTHS[parts.monthIndex]?.label || "",
+      String(parts.day),
+      String(hour).padStart(2, "0"),
+      numberFormat.format(consumption),
+      numberFormat.format(pv),
+      numberFormat.format(price),
+      numberFormat.format(cost),
+      hour >= 7 && hour < 22 ? "Zi" : "Noapte",
+      interval,
+      isWeekendRow(row, index) ? "Weekend" : "Zi lucratoare",
+    ];
+  });
+  const html = `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: Arial, sans-serif; color: #0a1d32; }
+          h1 { background: #06152c; color: #fff; padding: 12px; }
+          h2 { background: #d7e8f5; color: #154b75; padding: 8px; margin-top: 18px; }
+          table { border-collapse: collapse; width: 100%; margin-bottom: 18px; }
+          th { background: #e8f4eb; color: #0a1d32; font-weight: 700; }
+          th, td { border: 1px solid #b9c8d3; padding: 6px 8px; mso-number-format:"\\@"; }
+          td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8) { mso-number-format:"0.00"; }
+        </style>
+      </head>
+      <body>
+        <h1>SIMULATOR BESS - Export date diagrame si raport</h1>
+        ${table("Dashboard Executive", ["Indicator", "Valoare"], executiveRows)}
+        ${table("Consum pe intervale orare", ["Interval", "Consum MWh", "Pondere %"], intervalRows)}
+        ${table("Date lunare analizate", ["Luna", "Consum MWh", "PV MWh", "PMP Client", "Media PZU", "Ore scumpe MWh", "Ore ieftine MWh", "Weekday MWh", "Weekend MWh"], monthlyRows)}
+        ${table("Date orare analizate", ["Timestamp", "Luna", "Zi", "Ora", "Consum MWh", "PV MWh", "Pret PZU lei/MWh", "Cost PZU lei", "Zi/Noapte", "Interval orar", "Tip zi"], hourlyRows)}
+      </body>
+    </html>`;
+  const blob = new Blob([`\ufeff${html}`], { type: "application/vnd.ms-excel;charset=utf-8" });
+  downloadBlob(blob, `Diagrame_raport_${safeFilenamePart(data.contract.clientName || "Client", "Client")}.xls`);
+}
+
+function downloadAdvancedChartImages() {
+  renderConsumptionProfile();
+  const images = visibleChartImages();
+  if (!images.length) {
+    setMessages(["Nu exista diagrame vizibile de descarcat."], true);
+    return;
+  }
+  images.forEach((image, index) => {
+    window.setTimeout(() => {
+      const a = document.createElement("a");
+      a.href = image.src;
+      a.download = `${String(index + 1).padStart(2, "0")}_${safeFilenamePart(image.id, "diagrama")}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }, index * 120);
+  });
+}
+
 function drawSourcingProfileChart(daily) {
   const canvas = $("sourcingProfileChart");
   if (!canvas) return;
@@ -2438,6 +4662,9 @@ $("runBtn").addEventListener("click", runSimulation);
 $("runFinancialBtn").addEventListener("click", runFinancialSummary);
 $("exportFinancialBtn").addEventListener("click", exportFinancialSummary);
 $("exportReportBtn").addEventListener("click", exportCompleteReport);
+$("generatePdfReportBtn")?.addEventListener("click", generateAdvancedPdfReport);
+$("exportAdvancedDataBtn")?.addEventListener("click", exportAdvancedDataCsv);
+$("downloadChartImagesBtn")?.addEventListener("click", downloadAdvancedChartImages);
 $("activeScenario").addEventListener("change", (event) => renderScenario(event.target.value, { persist: true }));
 $("monthlyScenario").addEventListener("change", (event) => renderScenario(event.target.value, { persist: true }));
 $("scenarioTabs").addEventListener("click", (event) => {
@@ -2475,6 +4702,44 @@ window.addEventListener("resize", () => {
     }
     if (state.activeAppView === "profile") renderConsumptionProfile();
   }, 120);
+});
+updateProfileRoadmapLayout("client");
+$("profileRoadmapTabs").addEventListener("click", (event) => {
+  const simulatorButton = event.target.closest("button[data-open-simulator]");
+  if (simulatorButton) {
+    document.querySelectorAll("#profileRoadmapTabs button").forEach((item) => {
+      item.classList.toggle("active", item === simulatorButton);
+    });
+    setAppView("simulator");
+    return;
+  }
+  const button = event.target.closest("button[data-roadmap-tab]");
+  if (!button) return;
+  const tab = button.dataset.roadmapTab;
+  updateProfileRoadmapLayout(tab);
+  document.querySelectorAll("#profileRoadmapTabs button").forEach((item) => {
+    item.classList.toggle("active", item === button);
+  });
+  document.querySelectorAll(".profile-roadmap-tab").forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.roadmapPanel === tab);
+  });
+  if (tab === "procurement" || tab === "advanced") {
+    window.requestAnimationFrame(() => {
+      if (tab === "procurement" && state.procurementDna) drawProcurementDnaCharts(state.procurementDna);
+      else if (tab === "advanced" && state.advancedReport) drawAdvancedReportCharts(state.advancedReport);
+      else renderConsumptionProfile();
+    });
+  }
+});
+PROFILE_CONTRACT_FIELD_IDS.forEach((id) => {
+  const element = $(id);
+  if (!element) return;
+  const handler = () => {
+    renderConsumptionProfile();
+    scheduleSaveProjectDraft();
+  };
+  element.addEventListener("input", handler);
+  element.addEventListener("change", handler);
 });
 $("curveTable").addEventListener("input", (event) => {
   if (!(event.target instanceof HTMLInputElement)) return;
