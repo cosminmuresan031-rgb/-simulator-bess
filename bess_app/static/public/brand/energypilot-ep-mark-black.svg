@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="EnergyPilot EP mark v2">
+  <title>EnergyPilot EP mark v2</title>
+  <g fill="none" stroke="#000000" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M72 132 H210"/>
+    <path d="M72 256 H184"/>
+    <path d="M72 380 H210"/>
+    <path d="M292 132 V380"/>
+    <path d="M292 132 H376 Q446 132 446 220 Q446 308 376 308 H292"/>
+  </g>
+</svg>

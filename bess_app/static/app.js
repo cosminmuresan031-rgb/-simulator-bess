@@ -41,6 +41,14 @@ const BRAND = {
   pv: "#F59E0B",
 };
 
+const BRAND_ASSETS = {
+  primaryBlack: "/public/brand/energypilot-logo-primary-black.svg",
+  compactBlack: "/public/brand/energypilot-horizontal-compact-black.svg",
+  compactWhite: "/public/brand/energypilot-horizontal-compact-white.svg",
+  markBlack: "/public/brand/energypilot-ep-mark-black.svg",
+  markWhite: "/public/brand/energypilot-ep-mark-white.svg",
+};
+
 const MONTHS = [
   { key: "01", label: "Ianuarie", days: 31 },
   { key: "02", label: "Februarie", days: 28 },
@@ -5153,6 +5161,10 @@ function visibleChartImages() {
   }).filter(Boolean);
 }
 
+function absoluteAssetUrl(path) {
+  return new URL(path, window.location.href).href;
+}
+
 function generateAdvancedPdfReport() {
   renderConsumptionProfile();
   const data = state.advancedReport;
@@ -5173,6 +5185,8 @@ function generateAdvancedPdfReport() {
     return image ? `<figure><img src="${image.src}" alt="${escapeHtml(caption)}" /><figcaption>${escapeHtml(caption)}</figcaption></figure>` : "";
   };
   const reportConfig = activeReportConfig();
+  const primaryLogoUrl = absoluteAssetUrl(BRAND_ASSETS.primaryBlack);
+  const compactLogoUrl = absoluteAssetUrl(BRAND_ASSETS.compactBlack);
   const commercial = data.commercialOpportunity || { score: 0, label: "Limited Opportunity", estimatedAnnualSavingsLei: 0, topOpportunities: [], salesStory: "" };
   const sales = data.salesIntelligence || {
     executiveSummary: "Sales Intelligence insights pending. Additional consumption and market data required.",
@@ -5223,7 +5237,7 @@ function generateAdvancedPdfReport() {
     <div class="kpi"><span>Recommended Action</span><strong>${escapeHtml(sales.nextBestAction || topOpportunity?.action || "Complete analysis")}</strong></div>`;
   const managementSummary = `
     <section class="page">
-      <div class="cover-brand"><div class="pdf-lockup"><b>EP</b><strong>ENERGYPILOT</strong></div><span>Management Summary</span></div>
+      <div class="cover-brand"><img class="pdf-logo-primary" src="${primaryLogoUrl}" alt="EnergyPilot" /><span>Management Summary</span></div>
       <h1>${escapeHtml(contract.clientName || "Client")} - Management Summary</h1>
       <p class="subtitle">Energy Sales Intelligence Platform. Navigate every energy opportunity.</p>
       <div class="grid four">${commonKpis}</div>
@@ -5245,17 +5259,17 @@ function generateAdvancedPdfReport() {
           h2 { margin: 0 0 12px; padding: 8px 10px; background: #0F172A; color: #fff; border-radius: 4px; font-size: 18px; }
           h3 { margin: 10px 0 6px; font-size: 15px; }
           p { font-size: 13px; line-height: 1.45; }
-          .cover { min-height: 170mm; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(135deg, #0F172A 0%, #334155 100%); color: #fff; border-radius: 8px; padding: 28px; }
+          .cover { min-height: 170mm; display: flex; flex-direction: column; justify-content: space-between; background: #ffffff; color: #0F172A; border: 1px solid #E2E8F0; border-top: 8px solid #0F172A; border-radius: 8px; padding: 28px; }
           .cover-brand, .brand { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #10B981; padding-bottom: 10px; margin-bottom: 12px; }
           .cover-brand strong, .brand strong { font-size: 24px; }
-          .pdf-lockup { display: inline-flex; align-items: center; gap: 10px; }
-          .pdf-lockup b { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: #ffffff; color: #0F172A; box-shadow: inset 0 -3px 0 #10B981; font-size: 13px; }
+          .pdf-logo-primary { width: 320px; max-height: 74px; object-fit: contain; display: block; }
+          .pdf-logo-compact { width: 184px; max-height: 42px; object-fit: contain; display: block; }
           .cover h1 { max-width: 760px; font-size: 44px; }
-          .cover .subtitle { max-width: 700px; color: rgba(255,255,255,0.82); font-size: 17px; }
+          .cover .subtitle { max-width: 700px; color: #334155; font-size: 17px; }
           .cover-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-          .cover-meta div { border: 1px solid rgba(255,255,255,0.24); border-radius: 6px; padding: 10px; }
+          .cover-meta div { border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px; background: #F8FAFC; }
           .cover-meta span, .kpi span { display: block; color: #64748B; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-          .cover-meta span { color: rgba(255,255,255,0.68); }
+          .cover-meta span { color: #64748B; }
           .cover-meta strong { display: block; margin-top: 4px; font-size: 17px; }
           .subtitle { color: #64748B; font-size: 14px; font-weight: 700; }
           .grid { display: grid; gap: 8px; }
@@ -5283,7 +5297,7 @@ function generateAdvancedPdfReport() {
         ${managementOnly ? managementSummary : `
         <section class="page">
           <div class="cover">
-            <div class="cover-brand"><div class="pdf-lockup"><b>EP</b><strong>ENERGYPILOT</strong></div><span>Energy Sales Intelligence Platform</span></div>
+            <div class="cover-brand"><img class="pdf-logo-primary" src="${primaryLogoUrl}" alt="EnergyPilot" /><span>Energy Sales Intelligence Platform</span></div>
             <div>
               <h1>${escapeHtml(reportConfig.label)}</h1>
               <p class="subtitle">Navigate every energy opportunity.</p>
@@ -5297,7 +5311,7 @@ function generateAdvancedPdfReport() {
           </div>
         </section>
         <section class="page">
-          <div class="brand"><strong>ENERGYPILOT</strong><span>${escapeHtml(dateTimeFormat.format(new Date()))}</span></div>
+          <div class="brand"><img class="pdf-logo-compact" src="${compactLogoUrl}" alt="EnergyPilot" /><span>${escapeHtml(dateTimeFormat.format(new Date()))}</span></div>
           <h1>Page 1 - Executive Opportunity Summary</h1>
           <div class="grid four">
             ${commonKpis}
@@ -5384,7 +5398,15 @@ function generateAdvancedPdfReport() {
           <div class="callout"><strong>PV Expansion Potential</strong><p>${escapeHtml(solarOpportunity.action || "Dimensionare PV pentru autoconsum 08:00-18:00")}</p></div>
           <div class="two">${img("reportSolarOpportunityChart", "Solar Opportunity")}${img("reportDailyCurveChart", "Daily Consumption Profile")}</div>
         </section>`}
-        <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
+        <script>
+          window.onload = () => {
+            const images = Array.from(document.images);
+            Promise.all(images.map((image) => image.complete ? Promise.resolve() : new Promise((resolve) => {
+              image.onload = resolve;
+              image.onerror = resolve;
+            }))).then(() => setTimeout(() => window.print(), 300));
+          };
+        </script>
       </body>
     </html>`;
   popup.document.open();
@@ -5555,6 +5577,7 @@ function exportPowerPointReadyReport() {
   const commercial = data.commercialOpportunity || {};
   const sales = data.salesIntelligence || {};
   const chartImages = visibleChartImages();
+  const primaryLogoUrl = absoluteAssetUrl(BRAND_ASSETS.primaryBlack);
   const image = (id, caption) => {
     const found = chartImages.find((item) => item.id === id);
     return found ? `<img src="${found.src}" alt="${escapeHtml(caption)}" />` : `<p>${escapeHtml(caption)} unavailable.</p>`;
@@ -5564,7 +5587,7 @@ function exportPowerPointReadyReport() {
   const slides = [
     {
       title: config.label,
-      body: `<h2>${escapeHtml(data.contract.clientName || "Client")}</h2><p>Energy Sales Intelligence Platform. Navigate every energy opportunity.</p>`,
+      body: `<img class="slide-logo-primary" src="${primaryLogoUrl}" alt="EnergyPilot" /><h2>${escapeHtml(data.contract.clientName || "Client")}</h2><p>Energy Sales Intelligence Platform. Navigate every energy opportunity.</p>`,
     },
     {
       title: "Executive Opportunity Summary",
@@ -5590,7 +5613,7 @@ function exportPowerPointReadyReport() {
         <style>
           body { margin: 0; font-family: 'Plus Jakarta Sans', Inter, Arial, sans-serif; color: #0F172A; }
           .slide { width: 1280px; min-height: 720px; page-break-after: always; padding: 44px; box-sizing: border-box; }
-          .slide:first-child { background: linear-gradient(135deg, #0F172A, #334155); color: #fff; }
+          .slide:first-child { background: #ffffff; color: #0F172A; border-top: 10px solid #0F172A; }
           h1 { margin: 0 0 24px; font-size: 42px; }
           h2 { margin: 0 0 16px; font-size: 28px; }
           p, li { font-size: 22px; line-height: 1.35; }
@@ -5598,7 +5621,8 @@ function exportPowerPointReadyReport() {
           .kpis div { border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; background: #F8FAFC; }
           .kpis span { display: block; color: #64748B; font-size: 15px; font-weight: 800; text-transform: uppercase; }
           .kpis strong { display: block; margin-top: 8px; font-size: 23px; }
-          img { max-width: 100%; max-height: 270px; object-fit: contain; display: block; margin: 12px 0; border: 1px solid #E2E8F0; }
+          .slide-logo-primary { width: 340px; max-height: 80px; object-fit: contain; display: block; margin-bottom: 44px; }
+          img:not(.slide-logo-primary) { max-width: 100%; max-height: 270px; object-fit: contain; display: block; margin: 12px 0; border: 1px solid #E2E8F0; }
         </style>
       </head>
       <body>

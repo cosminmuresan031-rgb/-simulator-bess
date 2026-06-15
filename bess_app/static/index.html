@@ -5,14 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>EnergyPilot</title>
     <meta name="theme-color" content="#0F172A" />
-    <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="%230F172A"/><text x="32" y="39" text-anchor="middle" font-family="Arial" font-size="24" font-weight="800" fill="%23FFFFFF">EP</text><path d="M18 46h28" stroke="%2310B981" stroke-width="4" stroke-linecap="round"/></svg>' />
+    <link rel="icon" href="/public/icons/favicon.ico" sizes="any" />
+    <link rel="icon" href="/public/icons/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/public/icons/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/public/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/public/icons/manifest.json" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <section id="loadingScreen" class="loading-screen" aria-label="EnergyPilot loading">
       <div class="loading-card">
-        <div class="brand-mark loading-mark" aria-hidden="true">EP</div>
-        <strong>ENERGYPILOT</strong>
+        <img class="loading-mark-logo" src="/public/brand/energypilot-ep-mark-white.svg" alt="" aria-hidden="true" />
+        <img class="loading-logo" src="/public/brand/energypilot-horizontal-compact-white.svg" alt="EnergyPilot" />
         <span>Energy Sales Intelligence Platform</span>
         <small>Navigate every energy opportunity.</small>
         <div class="loading-line" aria-hidden="true"></div>
@@ -22,13 +26,9 @@
     <section id="authScreen" class="auth-screen">
       <form id="authForm" class="auth-card">
         <div class="auth-brand">
-          <div class="brand-mark" aria-hidden="true">EP</div>
-          <div>
-            <h1>ENERGYPILOT</h1>
-            <p id="authSubtitle">Energy Sales Intelligence Platform</p>
-            <small>Navigate every energy opportunity.</small>
-          </div>
+          <img class="auth-logo" src="/public/brand/energypilot-logo-primary-black.svg" alt="EnergyPilot" />
         </div>
+        <p id="authSubtitle" class="auth-title">Logare utilizator</p>
         <label>
           Email
           <input id="authEmail" type="email" autocomplete="email" required />
@@ -45,13 +45,10 @@
 
     <main id="appShell" class="app-shell is-hidden">
       <aside class="app-sidebar" aria-label="EnergyPilot navigation">
-        <div class="brand-lockup">
+        <div class="sidebar-brand brand-lockup">
           <button id="navConsumptionProfile" class="brand-wordmark main-menu-item active" type="button" data-app-view="profile">
-            <span class="brand-mark" aria-hidden="true">EP</span>
-            <span class="brand-name">ENERGYPILOT</span>
+            <img class="brand-logo brand-logo-expanded" src="/public/brand/energypilot-sidebar-header-final-large.svg" alt="EnergyPilot" />
           </button>
-          <span>Energy Sales Intelligence Platform</span>
-          <small>Navigate every energy opportunity.</small>
         </div>
 
         <label class="sidebar-client-switcher">
@@ -1095,10 +1092,8 @@
 
               <div class="report-center-header">
                 <div class="report-brand-lockup">
-                  <span class="brand-mark" aria-hidden="true">EP</span>
+                  <img class="report-logo" src="/public/brand/energypilot-horizontal-compact-black.svg" alt="EnergyPilot" />
                   <div>
-                    <span>REPORT BRANDING</span>
-                    <strong>ENERGYPILOT</strong>
                     <p>Energy Sales Intelligence Platform. Navigate every energy opportunity.</p>
                   </div>
                 </div>
