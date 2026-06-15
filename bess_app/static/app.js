@@ -1,9 +1,10 @@
-const state = {
+﻿const state = {
   result: null,
   activeScenario: null,
   scenarioBehaviorView: "actions",
   scenarioBehaviorMonth: "all",
   activeAppView: "profile",
+  activeReportType: "executive",
   curveKind: "consumption",
   curveView: "monthly",
   curveMonthIndex: 0,
@@ -24,6 +25,20 @@ const state = {
   isApplyingProject: false,
   user: null,
   authMode: "login",
+};
+
+const BRAND = {
+  primary: "#0F172A",
+  secondary: "#334155",
+  background: "#FFFFFF",
+  surface: "#F8FAFC",
+  border: "#E2E8F0",
+  success: "#10B981",
+  warning: "#F59E0B",
+  risk: "#EF4444",
+  muted: "#64748B",
+  night: "#334155",
+  pv: "#F59E0B",
 };
 
 const MONTHS = [
@@ -75,6 +90,15 @@ const PROFILE_ROADMAP_LAYOUTS = {
     analyticsTitle: "Date generate sourcing",
   },
 };
+const PROFILE_BREADCRUMBS = {
+  client: "Dashboard",
+  sourcing: "Dashboard > Contract Opportunity",
+  procurement: "Dashboard > Energy Profile Intelligence",
+  efficiency: "Dashboard > Opportunities",
+  advanced: "Dashboard > Visual Insights",
+  reports: "Dashboard > Reports",
+  simulator: "Dashboard > Opportunities > Storage Opportunity > BESS Simulator",
+};
 const PROFILE_CONTRACT_FIELD_IDS = [
   "profileClientName",
   "profileCui",
@@ -115,6 +139,13 @@ function $(id) {
   return document.getElementById(id);
 }
 
+function hideLoadingScreen() {
+  const loading = $("loadingScreen");
+  if (!loading) return;
+  loading.classList.add("is-done");
+  window.setTimeout(() => loading.classList.add("is-hidden"), 420);
+}
+
 function setAppView(view) {
   state.activeAppView = view === "profile" ? "profile" : "simulator";
   $("simulatorView")?.classList.toggle("is-hidden", state.activeAppView !== "simulator");
@@ -124,6 +155,7 @@ function setAppView(view) {
   });
   document.querySelector('#profileRoadmapTabs button[data-open-simulator="true"]')?.classList.toggle("active", state.activeAppView === "simulator");
   if (state.activeAppView === "profile") renderConsumptionProfile();
+  else setBreadcrumb("simulator");
 }
 
 function clone(value) {
@@ -1971,6 +2003,7 @@ function renderCommercialOpportunityEngine(engine) {
   setText("storageOpportunityScore", formatPercent(storage.score || 0));
   setText("storagePotentialSavings", formatLei(storage.estimatedSavingsLei || 0));
   setText("storageRoi", (storage.estimatedSavingsLei || 0) > 0 ? "Necesita CAPEX" : "CAPEX necesar");
+  renderOpportunityMarketplace(engine);
   const top = engine.topOpportunities[0];
   setText("commercialTopOpportunity", top ? top.name : "Introdu curbe");
   setText("commercialTopOpportunityAction", top ? `${commercialPriorityLabel(top.score)} - ${top.action}` : "Prioritatea se genereaza automat");
@@ -1998,15 +2031,25 @@ function renderCommercialOpportunityEngine(engine) {
   const tbody = $("commercialRankingRows");
   if (tbody) {
     tbody.innerHTML = "";
-    engine.opportunities.forEach((item, index) => {
+    engine.opportunities.forEach((item) => {
+      const meta = opportunityStatusMeta(item.score);
       const tr = document.createElement("tr");
-      [String(index + 1), item.name, formatPercent(item.score), formatLei(item.estimatedSavingsLei), item.action].forEach((value) => {
+      tr.dataset.status = meta.key;
+      [
+        item.name,
+        formatPercent(item.score),
+        meta.priority,
+        formatLei(item.estimatedSavingsLei),
+        meta.label,
+        item.action,
+      ].forEach((value) => {
         const td = document.createElement("td");
         td.textContent = value;
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
+    applyOpportunityFilter();
   }
 }
 
@@ -2258,9 +2301,157 @@ function setText(id, value) {
   if (element) element.textContent = value;
 }
 
+function opportunityStatusMeta(score) {
+  const value = Number(score) || 0;
+  if (value >= 70) return { key: "high", label: "High Opportunity", priority: "High" };
+  if (value >= 45) return { key: "medium", label: "Medium Opportunity", priority: "Medium" };
+  if (value > 0) return { key: "low", label: "Low Opportunity", priority: "Low" };
+  return { key: "pending", label: "Pending Assessment", priority: "Pending" };
+}
+
+function setOpportunityStatus(statusId, priorityId, meta) {
+  const status = $(statusId);
+  if (status) {
+    status.className = `opportunity-status ${meta.key}`;
+    status.textContent = meta.label;
+  }
+  setText(priorityId, `Priority: ${meta.priority}`);
+}
+
+function marketplaceCard(key) {
+  return document.querySelector(`[data-opportunity-card="${key}"]`);
+}
+
+function updateMarketplaceCardState(key, item, displayName) {
+  const card = marketplaceCard(key);
+  const meta = opportunityStatusMeta(item?.score || 0);
+  if (!card) return meta;
+  card.dataset.status = meta.key;
+  card.dataset.score = String(Math.round(Number(item?.score) || 0));
+  card.dataset.opportunityName = displayName || item?.name || "";
+  card.dataset.estimatedSavings = String(Number(item?.estimatedSavingsLei) || 0);
+  card.dataset.recommendedAction = item?.action || "";
+  return meta;
+}
+
+function currentOpportunityFilter() {
+  return document.querySelector("#opportunityFilters button.active")?.dataset.opportunityFilter || "all";
+}
+
+function applyOpportunityFilter(filter = currentOpportunityFilter()) {
+  document.querySelectorAll("#opportunityFilters button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.opportunityFilter === filter);
+  });
+  document.querySelectorAll(".opportunity-market-card").forEach((card) => {
+    const status = card.dataset.status || "pending";
+    const isImplemented = card.dataset.implemented === "true";
+    const visible =
+      filter === "all" ||
+      status === filter ||
+      (filter === "implemented" && isImplemented);
+    card.classList.toggle("is-filter-hidden", !visible);
+  });
+  document.querySelectorAll("#commercialRankingRows tr").forEach((row) => {
+    const status = row.dataset.status || "pending";
+    const isImplemented = row.dataset.implemented === "true";
+    const visible =
+      filter === "all" ||
+      status === filter ||
+      (filter === "implemented" && isImplemented);
+    row.classList.toggle("is-filter-hidden", !visible);
+  });
+}
+
+function opportunityInfrastructure(useCase) {
+  if (useCase === "Employee Charging") return "AC 22 kW cu load management";
+  if (useCase === "Visitor Charging") return "AC public + DC punctual";
+  if (useCase === "Fleet Charging") return "Hub AC/DC cu programare incarcare";
+  if (useCase === "Truck Charging") return "DC high power si verificare MT";
+  return "Necesita date despre flota si parcari";
+}
+
+function renderOpportunityMarketplace(engine) {
+  if (!$("opportunityMarketplaceGrid")) return;
+  const opportunities = engine?.opportunities || [];
+  const opportunityByKey = Object.fromEntries(opportunities.map((item) => [item.key, item]));
+  const contract = profileContractData();
+  const annual = state.profileAnalytics?.annual || {};
+  const hasConsumption = (annual.consumptionMwh || 0) > 0;
+  const pvInstalled = contract.existingPv === "Da" || contract.prosumer === "Da" || (contract.pvKwp || 0) > 0;
+  const positiveCount = opportunities.filter((item) => (item.score || 0) > 0).length;
+  const top = engine?.topOpportunities?.[0] || opportunities.find((item) => (item.score || 0) > 0);
+
+  setText("marketplaceTotalOpportunities", String(positiveCount));
+  $("marketplaceEmptyState")?.classList.toggle("is-hidden", positiveCount > 0);
+  setText("spotlightOpportunityName", top ? top.name : "No opportunities identified yet.");
+  setText(
+    "spotlightOpportunityText",
+    top
+      ? `${top.action}. Estimated impact: ${formatLei(top.estimatedSavingsLei || 0)}. Priority: ${opportunityStatusMeta(top.score).priority}.`
+      : "Please upload consumption data and complete the analysis.",
+  );
+
+  const contractOpportunity = opportunityByKey.contract || {};
+  const contractMeta = updateMarketplaceCardState("contract", contractOpportunity, "Contract Optimization");
+  setText("marketplaceContractScore", formatPercent(contractOpportunity.score || 0));
+  setOpportunityStatus("marketplaceContractStatus", "marketplaceContractPriority", contractMeta);
+  setText("marketplaceContractSavings", formatLei(contractOpportunity.estimatedSavingsLei || 0));
+  setText("marketplaceContractFit", contractMeta.label);
+  setText("marketplaceContractStrategy", contractOpportunity.action || "Analiza contract");
+
+  const solarOpportunity = opportunityByKey.solar || {};
+  const solarName = pvInstalled ? "Solar Expansion Opportunity" : "Solar Opportunity";
+  const solarMeta = updateMarketplaceCardState("solar", solarOpportunity, solarName);
+  const estimatedSelfConsumption =
+    pvInstalled && (annual.pvMwh || 0) > 0
+      ? Math.min(annual.dayMwh || 0, annual.pvMwh || 0)
+      : (annual.dayMwh || 0) * ((solarOpportunity.score || 0) / 100) * 0.2;
+  setText("marketplaceSolarName", solarName);
+  setOpportunityStatus("marketplaceSolarStatus", "marketplaceSolarPriority", solarMeta);
+  setText("marketplaceSolarSelfConsumption", formatMetric(estimatedSelfConsumption, " MWh"));
+  setText("marketplaceSolarSavings", formatLei(solarOpportunity.estimatedSavingsLei || 0));
+  setText("marketplaceSolarCardStatus", solarMeta.label);
+
+  const pvMaintenance = opportunityByKey["pv-maintenance"] || {};
+  const pvMeta = updateMarketplaceCardState("pv-maintenance", pvMaintenance, "PV Maintenance Opportunity");
+  setOpportunityStatus("marketplacePvStatus", "marketplacePvPriority", pvMeta);
+  setText("marketplacePvCapacity", `${numberFormat.format(contract.pvKwp || 0)} kWp`);
+  setText("marketplacePvCardStatus", pvInstalled ? pvMeta.label : "Pending Assessment");
+  setText("marketplacePvService", pvInstalled ? "Audit productie PV si mentenanta performanta" : "Activeaza dupa introducerea PV/prosumator");
+
+  const storage = opportunityByKey.storage || {};
+  const storageMeta = updateMarketplaceCardState("storage", storage, "Storage Opportunity");
+  setOpportunityStatus("marketplaceStorageStatus", "marketplaceStoragePriority", storageMeta);
+  setText("marketplaceStorageSavings", formatLei(storage.estimatedSavingsLei || 0));
+  setText("marketplaceStorageRoi", (storage.estimatedSavingsLei || 0) > 0 ? "Necesita CAPEX" : "CAPEX necesar");
+  setText("marketplaceStoragePriorityDetail", storageMeta.priority);
+
+  const grid = opportunityByKey.grid || {};
+  const gridMeta = updateMarketplaceCardState("grid", grid, "Grid Optimization");
+  const peakDelta = Math.max(0, (annual.peakMw || 0) - (annual.averageMw || 0));
+  setOpportunityStatus("marketplaceGridStatus", "marketplaceGridPriority", gridMeta);
+  setText("marketplaceGridPeakShaving", hasConsumption ? `${formatMetric(peakDelta, " MW")} peak gap` : "Pending Assessment");
+  setText("marketplaceGridImpact", formatLei(grid.estimatedSavingsLei || 0));
+
+  const ev = opportunityByKey.ev || {};
+  const evMeta = updateMarketplaceCardState("ev", ev, "EV Charging Opportunity");
+  const evUseCase = [...(engine?.evTypes || [])].sort((a, b) => b.score - a.score)[0]?.label || "Pending Assessment";
+  setOpportunityStatus("marketplaceEvStatus", "marketplaceEvPriority", evMeta);
+  setText("marketplaceEvUseCase", evUseCase);
+  setText("marketplaceEvInfrastructure", opportunityInfrastructure(evUseCase));
+  setText("marketplaceEvImpact", formatLei(ev.estimatedSavingsLei || 0));
+
+  applyOpportunityFilter();
+}
+
+function setBreadcrumb(key = "client") {
+  setText("breadcrumbTrail", PROFILE_BREADCRUMBS[key] || PROFILE_BREADCRUMBS.client);
+}
+
 function updateTopbarContext(contract = profileContractData()) {
-  const selector = $("topClientSelector");
-  if (selector) {
+  ["topClientSelector", "sidebarClientSwitcher"].forEach((id) => {
+    const selector = $(id);
+    if (!selector) return;
     let option = selector.querySelector("option");
     if (!option) {
       option = document.createElement("option");
@@ -2268,7 +2459,7 @@ function updateTopbarContext(contract = profileContractData()) {
     }
     option.textContent = contract.clientName || "Client curent";
     option.value = contract.clientName || "current";
-  }
+  });
   const topDateRange = $("topDateRange");
   const priceYear = $("priceYear");
   if (topDateRange && priceYear) topDateRange.value = priceYear.value || "2025";
@@ -2282,6 +2473,7 @@ function updateProfileRoadmapLayout(tab = "client") {
   setText("executivePanelTitle", layout.executiveTitle);
   setText("analyticsPanelTitle", layout.analyticsTitle);
   setText("advancedReportHeading", tab === "reports" ? "Reports" : "Visual Insights");
+  setBreadcrumb(tab);
 }
 
 function renderProfileRoadmap(metrics, opportunity, contract) {
@@ -2778,6 +2970,151 @@ function buildProcurementDna(profile, metrics, analytics, opportunity, contract,
   return dna;
 }
 
+function energyRiskLevel(score) {
+  if (!Number.isFinite(score)) return "Pending Assessment";
+  if (score <= 25) return "Low Risk";
+  if (score <= 50) return "Medium Risk";
+  return "High Risk";
+}
+
+function energyRiskColor(score) {
+  if (!Number.isFinite(score)) return "#94A3B8";
+  if (score <= 25) return BRAND.success;
+  if (score <= 50) return BRAND.warning;
+  if (score <= 75) return "#F97316";
+  return BRAND.risk;
+}
+
+function scoreOrUnavailable(value) {
+  return Number.isFinite(value) ? formatPercent(value) : "N/A";
+}
+
+function procurementPersonaFromDna(dna) {
+  if (!dna?.hasConsumption) return "Additional consumption history required";
+  if (dna.storageReadiness === "Storage Ready") return "Storage Ready Consumer";
+  if (dna.solarReadiness === "Solar Ready") return "Solar Friendly Consumer";
+  if (Number.isFinite(dna.riskScore) && dna.riskScore > 60) return "Volatile Consumer";
+  if ((dna.nightRatio || 0) >= 45) return "Night Intensive Consumer";
+  if ((dna.dayRatio || 0) >= 65) return "Daytime Industrial Consumer";
+  if ((dna.loadFactorScore || 0) >= 70) return "Stable Baseload Consumer";
+  if ((dna.spotMarketFit || 0) >= 70) return "Flexible Consumer";
+  return "Hybrid Consumer";
+}
+
+function personaExplanation(persona, dna) {
+  if (!dna?.hasConsumption) return "Clientul va fi clasificat automat dupa introducerea curbelor orare.";
+  const explanations = {
+    "Storage Ready Consumer": "Profilul are flexibilitate si/sau expunere la preturi care pot sustine analiza BESS.",
+    "Solar Friendly Consumer": "Consum relevant in intervalul solar, util pentru propuneri PV sau extindere PV.",
+    "Volatile Consumer": "Consum cu variatii relevante, care necesita prudenta in achizitie si prognoza.",
+    "Night Intensive Consumer": "Consum important in intervalul de noapte, relevant pentru produse si tarife adaptate.",
+    "Daytime Industrial Consumer": "Consum concentrat ziua, usor de explicat comercial pentru PV si contractare.",
+    "Stable Baseload Consumer": "Consum stabil, cu sarcina de baza buna si predictibilitate ridicata.",
+    "Flexible Consumer": "Profil cu potential de optimizare prin PZU, flexibilitate si monitorizare activa.",
+    "Hybrid Consumer": "Profil mixt, recomandat pentru contractare echilibrata si analiza pe oportunitati.",
+  };
+  return explanations[persona] || explanations["Hybrid Consumer"];
+}
+
+function evReadinessLabel(metrics, contract) {
+  if (!(metrics?.totalConsumption > 0)) return "Pending Assessment";
+  const averageMw = Number(metrics.averageMw) || 0;
+  const dayPct = Number(metrics.dayPct) || 0;
+  const nightPct = Number(metrics.nightPct) || 0;
+  if ((contract?.voltage === "MT" || contract?.voltage === "IT") && averageMw >= 0.5) return "Truck Charging Fit";
+  if (nightPct >= 35 && averageMw >= 0.25) return "Fleet Charging Fit";
+  if (dayPct >= 55) return "Employee Charging Fit";
+  return "Visitor Charging Fit";
+}
+
+function fillInsightList(id, items = [], fallback = "Additional consumption history required.") {
+  const target = $(id);
+  if (!target) return;
+  target.innerHTML = "";
+  const values = items.filter(Boolean).slice(0, 4);
+  (values.length ? values : [fallback]).forEach((text) => {
+    const item = document.createElement("span");
+    item.textContent = text;
+    target.appendChild(item);
+  });
+}
+
+function renderEnergyProfileIntelligenceUi(dna, metrics, analytics, opportunity, contract) {
+  const annual = analytics?.annual || {};
+  const persona = procurementPersonaFromDna(dna);
+  const commercialPotential = Number(opportunity?.energyOpportunityScore) || 0;
+  const riskScore = Number.isFinite(dna.riskScore) ? dna.riskScore : null;
+  const forecastRisk = dna.hasConsumption ? clamp(100 - (dna.forecastabilityScore || 0), 0, 100) : null;
+  const priceRisk = Number.isFinite(dna.costDna?.concentrationIndex) ? dna.costDna.concentrationIndex : null;
+  const volumeRisk = Number.isFinite(dna.peakRiskScore) ? dna.peakRiskScore : (dna.hasConsumption ? dna.volatilityScore : null);
+  const loadStability = dna.hasConsumption ? clamp(100 - (dna.volatilityScore || 0), 0, 100) : 0;
+  const priceSensitivityScore = dna.costDna?.available ? clamp((annual.priceSpreadLeiMwh || 0) / 8, 0, 100) : null;
+  const peakThreshold = Number.isFinite(dna.loadDna?.highloadMw) ? dna.loadDna.highloadMw : dna.loadDna?.peakloadMw;
+  const loadValues = dna.loadDna?.sortedDesc || [];
+  const peakValues = Number.isFinite(peakThreshold) ? loadValues.filter((value) => value >= peakThreshold) : [];
+  const peakShare =
+    peakValues.length && loadValues.length
+      ? (peakValues.reduce((sum, value) => sum + value, 0) / loadValues.reduce((sum, value) => sum + value, 0)) * 100
+      : null;
+  const evReadiness = evReadinessLabel(metrics, contract);
+
+  $("energyProfileEmptyState")?.classList.toggle("is-hidden", Boolean(dna.hasConsumption));
+  setText("energyProcurementPersona", persona);
+  setText("energyPersonaTitle", persona);
+  setText("energyPersonaText", personaExplanation(persona, dna));
+  setText("energyCommercialPotential", formatPercent(commercialPotential));
+  setText("energyCommercialPotentialLabel", commercialPotential > 65 ? "Potential comercial ridicat" : commercialPotential > 35 ? "Potential comercial mediu" : "Oportunitati in asteptare");
+  setText("riskDnaLevelText", energyRiskLevel(riskScore));
+  setText("riskGaugeValue", Number.isFinite(riskScore) ? `${Math.round(riskScore)}` : "N/A");
+  const gauge = $("riskGaugeCircle");
+  if (gauge) {
+    gauge.style.setProperty("--risk-score", String(Number.isFinite(riskScore) ? clamp(riskScore, 0, 100) : 0));
+    gauge.style.setProperty("--risk-color", energyRiskColor(riskScore));
+  }
+  setText("riskDnaPriceRisk", scoreOrUnavailable(priceRisk));
+  setText("riskDnaVolumeRisk", scoreOrUnavailable(volumeRisk));
+  setText("riskDnaForecastRisk", scoreOrUnavailable(forecastRisk));
+  setText("loadDnaLoadFactor", formatPercent(dna.loadFactorScore || 0));
+  setText("loadDnaStabilityIndex", formatPercent(loadStability));
+  setText("loadDnaConsumptionVariability", formatPercent(dna.volatilityScore || 0));
+  setText("loadDnaPeakHours", peakValues.length ? `${peakValues.length} ore` : "N/A");
+  setText("loadDnaPeakShare", Number.isFinite(peakShare) ? formatPercent(peakShare) : "N/A");
+  setText("costDnaExposureScore", Number.isFinite(priceRisk) ? formatPercent(priceRisk) : "Indisponibil");
+  setText("costDnaPriceSensitivity", Number.isFinite(priceSensitivityScore) ? formatPercent(priceSensitivityScore) : "Indisponibil");
+  setText("costDnaProcurementRisk", Number.isFinite(riskScore) ? energyRiskLevel(riskScore) : "Indisponibil");
+  setText("costExposureTopHours", dna.costDna?.top10?.length ? `${dna.costDna.top10.length} ore` : "N/A");
+  setText("opportunityDnaStorage", dna.storageReadiness);
+  setText("opportunityDnaStorageLabel", dna.storageLabel);
+  setText("opportunityDnaSolar", dna.solarReadiness);
+  setText("opportunityDnaSolarLabel", dna.solarLabel);
+  setText("opportunityDnaContract", dna.contractRecommendation || "In asteptare");
+  setText("opportunityDnaGrid", dna.gridOptimization);
+  setText("opportunityDnaGridLabel", dna.gridLabel);
+  setText("opportunityDnaEv", evReadiness);
+  setText("opportunityDnaEvLabel", evReadiness === "Pending Assessment" ? "Necesita date de consum" : "Use case EV estimat din profil");
+
+  const strengths = [];
+  if ((dna.forecastabilityScore || 0) >= 70) strengths.push(`Forecastability buna: ${formatPercent(dna.forecastabilityScore)}`);
+  if ((dna.loadFactorScore || 0) >= 60) strengths.push(`Load factor stabil: ${formatPercent(dna.loadFactorScore)}`);
+  if (Number.isFinite(riskScore) && riskScore <= 35) strengths.push(`Risc energetic controlat: ${energyRiskLevel(riskScore)}`);
+  if (dna.solarReadiness === "Solar Ready") strengths.push("Consum potrivit pentru PV");
+  const risks = [];
+  if (Number.isFinite(riskScore) && riskScore > 50) risks.push(`Risk DNA ridicat: ${formatPercent(riskScore)}`);
+  if (Number.isFinite(dna.loadDna?.peakBaseRatio) && dna.loadDna.peakBaseRatio > 3) risks.push(`Peak/Base Ratio mare: ${numberFormat.format(dna.loadDna.peakBaseRatio)}`);
+  if (Number.isFinite(priceRisk) && priceRisk > 50) risks.push(`Cost concentration: ${formatPercent(priceRisk)}`);
+  if ((dna.seasonalityScore || 0) > 50) risks.push(`Seasonality risk: ${formatPercent(dna.seasonalityScore)}`);
+  const opportunities = [
+    dna.contractRecommendation ? `Contract: ${dna.contractRecommendation}` : null,
+    dna.storageReadiness !== "Storage Low Fit" ? `Storage: ${dna.storageReadiness}` : null,
+    dna.solarReadiness !== "Solar Low Fit" ? `Solar: ${dna.solarReadiness}` : null,
+    dna.gridOptimization !== "No Grid Opportunity" ? `Grid: ${dna.gridOptimization}` : null,
+    evReadiness !== "Pending Assessment" ? `EV: ${evReadiness}` : null,
+  ];
+  fillInsightList("energyTopStrengths", strengths);
+  fillInsightList("energyTopRisks", risks, "Nu exista riscuri majore identificate inca.");
+  fillInsightList("energyTopOpportunities", opportunities);
+}
+
 function renderProcurementDna(profile, metrics, analytics, opportunity, contract, rows = state.lastProfileRows) {
   if (!$("procurementDnaLabel")) return;
   const dna = buildProcurementDna(profile, metrics, analytics, opportunity, contract, rows);
@@ -2824,6 +3161,7 @@ function renderProcurementDna(profile, metrics, analytics, opportunity, contract
   setText("costDnaInterpretation", dna.costText);
   setText("procurementFinalOutput", dna.finalOutput);
   setText("procurementReportText", dna.reportText);
+  renderEnergyProfileIntelligenceUi(dna, metrics, analytics, opportunity, contract);
   drawProcurementDnaCharts(dna);
 }
 
@@ -3447,7 +3785,7 @@ async function exportCompleteReport() {
       throw new Error(message);
     }
     const blob = await response.blob();
-    const name = `Raport_BESS_${safeFilenamePart(project.name || $("projectName").value, "Proiect_BESS")}_${safeFilenamePart(summary.scenarioName, "scenariu")}.xlsx`;
+    const name = `EnergyPilot_Raport_${safeFilenamePart(project.name || $("projectName").value, "Proiect_EnergyPilot")}_${safeFilenamePart(summary.scenarioName, "scenariu")}.xlsx`;
     downloadBlob(blob, name);
     setMessages(["Raportul complet a fost generat cu valori inghetate, fara formule vizibile."]);
   } catch (error) {
@@ -3801,10 +4139,10 @@ function prepareChartCanvas(canvas, fallbackWidth, fallbackHeight) {
 
 function drawProcurementChartFrame(ctx, width, height, title) {
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = BRAND.background;
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = "#0a1d32";
-  ctx.font = "800 17px Montserrat, Arial";
+  ctx.fillStyle = BRAND.primary;
+  ctx.font = "800 17px Plus Jakarta Sans, Inter, Arial";
   ctx.textAlign = "left";
   ctx.fillText(title, 24, 30);
 }
@@ -3820,10 +4158,10 @@ function drawProcurementRadarChart(items = []) {
   const centerY = height / 2 + 18;
   const radius = Math.min(width, height) * 0.29;
   const levels = 4;
-  ctx.strokeStyle = "#d9e3eb";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
-  ctx.fillStyle = "#526b72";
-  ctx.font = "700 10px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "700 10px Plus Jakarta Sans, Inter, Arial";
   ctx.textAlign = "center";
 
   for (let level = 1; level <= levels; level += 1) {
@@ -3844,12 +4182,12 @@ function drawProcurementRadarChart(items = []) {
     const angle = -Math.PI / 2 + (index / items.length) * Math.PI * 2;
     const x = centerX + Math.cos(angle) * radius;
     const y = centerY + Math.sin(angle) * radius;
-    ctx.strokeStyle = "#d9e3eb";
+    ctx.strokeStyle = "#E2E8F0";
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(x, y);
     ctx.stroke();
-    ctx.fillStyle = "#526b72";
+    ctx.fillStyle = "#64748B";
     const labelX = centerX + Math.cos(angle) * (radius + 38);
     const labelY = centerY + Math.sin(angle) * (radius + 28);
     ctx.fillText(String(item.label || ""), labelX, labelY);
@@ -3865,8 +4203,8 @@ function drawProcurementRadarChart(items = []) {
     else ctx.lineTo(x, y);
   });
   ctx.closePath();
-  ctx.fillStyle = "rgba(79, 155, 39, 0.28)";
-  ctx.strokeStyle = "#4f9b27";
+  ctx.fillStyle = "rgba(16, 185, 129, 0.28)";
+  ctx.strokeStyle = "#10B981";
   ctx.lineWidth = 2.5;
   ctx.fill();
   ctx.stroke();
@@ -3889,7 +4227,7 @@ function drawProcurementBars(canvasId, title, rows = [], options = {}) {
   const groupW = rows.length ? plotW / rows.length : plotW;
   const barW = Math.max(22, Math.min(54, groupW * 0.42));
 
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
   for (let index = 0; index <= 4; index += 1) {
     const y = paddingTop + (plotH / 4) * index;
@@ -3898,7 +4236,7 @@ function drawProcurementBars(canvasId, title, rows = [], options = {}) {
     ctx.lineTo(width - paddingRight, y);
     ctx.stroke();
   }
-  ctx.strokeStyle = "#cbd6de";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
   ctx.lineTo(paddingLeft, height - paddingBottom);
@@ -3910,14 +4248,14 @@ function drawProcurementBars(canvasId, title, rows = [], options = {}) {
     const x = paddingLeft + index * groupW + (groupW - barW) / 2;
     const barH = (value / max) * plotH;
     const y = height - paddingBottom - barH;
-    ctx.fillStyle = row.color || options.color || "#4f9b27";
+    ctx.fillStyle = row.color || options.color || "#10B981";
     ctx.fillRect(x, y, barW, barH);
-    ctx.fillStyle = "#0a1d32";
-    ctx.font = "800 11px Montserrat, Arial";
+    ctx.fillStyle = "#0F172A";
+    ctx.font = "800 11px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText(formatMetric(value), x + barW / 2, Math.max(paddingTop + 14, y - 8));
-    ctx.fillStyle = "#526b72";
-    ctx.font = "700 11px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "700 11px Plus Jakarta Sans, Inter, Arial";
     ctx.fillText(String(row.label || ""), x + barW / 2, height - 18);
   });
   ctx.textAlign = "left";
@@ -3937,7 +4275,7 @@ function drawProcurementSeasonalityChart(rows = []) {
   const plotW = width - paddingLeft - paddingRight;
   const plotH = height - paddingTop - paddingBottom;
 
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
   for (let index = 0; index <= 4; index += 1) {
     const y = paddingTop + (plotH / 4) * index;
@@ -3946,14 +4284,14 @@ function drawProcurementSeasonalityChart(rows = []) {
     ctx.lineTo(width - paddingRight, y);
     ctx.stroke();
   }
-  ctx.strokeStyle = "#cbd6de";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
   ctx.lineTo(paddingLeft, height - paddingBottom);
   ctx.lineTo(width - paddingRight, height - paddingBottom);
   ctx.stroke();
 
-  ctx.strokeStyle = "#4f9b27";
+  ctx.strokeStyle = "#10B981";
   ctx.lineWidth = 2.6;
   ctx.beginPath();
   rows.forEach((row, index) => {
@@ -3968,14 +4306,14 @@ function drawProcurementSeasonalityChart(rows = []) {
     const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
     const y = height - paddingBottom - ((Number(row.value) || 0) / max) * plotH;
     ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#4f9b27";
+    ctx.strokeStyle = "#10B981";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#526b72";
-    ctx.font = "700 10px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "700 10px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText(MONTH_SHORT[index] || String(row.label || ""), x, height - 18);
   });
@@ -3986,7 +4324,7 @@ function drawProcurementLoadDurationChart(loadDna) {
   const canvas = $("procurementLoadDurationChart");
   if (!canvas) return;
   const { ctx, width, height } = prepareChartCanvas(canvas, 1120, 360);
-  drawProcurementChartFrame(ctx, width, height, "Load Duration Curve");
+  drawProcurementChartFrame(ctx, width, height, "Load Duration Analysis");
   const points = loadDna?.points || [];
   const max = Math.max(...points.map((point) => Number(point.value) || 0), 1);
   const paddingLeft = 64;
@@ -3996,7 +4334,7 @@ function drawProcurementLoadDurationChart(loadDna) {
   const plotW = width - paddingLeft - paddingRight;
   const plotH = height - paddingTop - paddingBottom;
 
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
   for (let index = 0; index <= 4; index += 1) {
     const y = paddingTop + (plotH / 4) * index;
@@ -4005,29 +4343,29 @@ function drawProcurementLoadDurationChart(loadDna) {
     ctx.lineTo(width - paddingRight, y);
     ctx.stroke();
   }
-  ctx.strokeStyle = "#cbd6de";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
   ctx.lineTo(paddingLeft, height - paddingBottom);
   ctx.lineTo(width - paddingRight, height - paddingBottom);
   ctx.stroke();
 
-  ctx.fillStyle = "#526b72";
-  ctx.font = "700 11px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "700 11px Plus Jakarta Sans, Inter, Arial";
   ctx.textAlign = "left";
   ctx.fillText("Consum MW", 24, paddingTop - 16);
   ctx.textAlign = "center";
   ctx.fillText("Ore sortate descrescator", paddingLeft + plotW / 2, height - 15);
 
   if (!points.length) {
-    ctx.fillStyle = "#526b72";
-    ctx.font = "800 14px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "800 14px Plus Jakarta Sans, Inter, Arial";
     ctx.fillText("Curba orara de consum este necesara pentru generare.", paddingLeft + plotW / 2, paddingTop + plotH / 2);
     ctx.textAlign = "left";
     return;
   }
 
-  ctx.strokeStyle = "#4f9b27";
+  ctx.strokeStyle = "#10B981";
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   points.forEach((point, index) => {
@@ -4039,9 +4377,9 @@ function drawProcurementLoadDurationChart(loadDna) {
   ctx.stroke();
 
   const refs = [
-    { label: "Baseload", value: loadDna.baseloadMw, color: "#2b6cb0" },
-    { label: "Midload", value: loadDna.midloadMw, color: "#8aa3b8" },
-    { label: "Peakload", value: loadDna.peakloadMw, color: "#c65050" },
+    { label: "Baseload", value: loadDna.baseloadMw, color: "#334155" },
+    { label: "Midload", value: loadDna.midloadMw, color: "#94A3B8" },
+    { label: "Peakload", value: loadDna.peakloadMw, color: "#EF4444" },
   ].filter((item) => Number.isFinite(item.value));
   refs.forEach((item, index) => {
     const y = height - paddingBottom - (item.value / max) * plotH;
@@ -4053,7 +4391,7 @@ function drawProcurementLoadDurationChart(loadDna) {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = item.color;
-    ctx.font = "800 11px Montserrat, Arial";
+    ctx.font = "800 11px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "right";
     ctx.fillText(`${item.label}: ${numberFormat.format(item.value)}`, width - paddingRight - 8, y - 6 - index * 2);
   });
@@ -4074,8 +4412,8 @@ function drawProcurementTopCostChart(costDna) {
   const plotW = width - paddingLeft - paddingRight;
   const rowH = rows.length ? (height - paddingTop - paddingBottom) / rows.length : 24;
   if (!rows.length) {
-    ctx.fillStyle = "#526b72";
-    ctx.font = "800 14px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "800 14px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText("Cost DNA indisponibil fara consum si preturi PZU.", width / 2, height / 2);
     ctx.textAlign = "left";
@@ -4086,10 +4424,10 @@ function drawProcurementTopCostChart(costDna) {
     const y = paddingTop + index * rowH + rowH * 0.18;
     const barH = Math.max(8, rowH * 0.58);
     const barW = ((Number(row.cost) || 0) / max) * plotW;
-    ctx.fillStyle = "#4f9b27";
+    ctx.fillStyle = "#10B981";
     ctx.fillRect(paddingLeft, y, barW, barH);
-    ctx.fillStyle = "#0a1d32";
-    ctx.font = "800 10px Montserrat, Arial";
+    ctx.fillStyle = "#0F172A";
+    ctx.font = "800 10px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "right";
     ctx.fillText(String(row.timestamp || "").replace(":00", ""), paddingLeft - 10, y + barH * 0.72);
     ctx.textAlign = "left";
@@ -4101,9 +4439,9 @@ function drawProcurementTopCostChart(costDna) {
 function drawProcurementCostDistributionChart(costDna) {
   const rows = (costDna?.distribution || []).map((row, index) => ({
     ...row,
-    color: ["#2b6cb0", "#8aa3b8", "#c65050"][index] || "#4f9b27",
+    color: ["#334155", "#94A3B8", "#EF4444"][index] || "#10B981",
   }));
-  drawProcurementBars("procurementCostDistributionChart", "Cost Distribution", rows, { color: "#4f9b27" });
+  drawProcurementBars("procurementCostDistributionChart", "Cost Distribution", rows, { color: "#10B981" });
 }
 
 function drawProcurementDnaCharts(dna) {
@@ -4115,6 +4453,7 @@ function drawProcurementDnaCharts(dna) {
 
 const ADVANCED_CHART_IDS = [
   "reportConsumptionHeatmap",
+  "reportLoadDurationChart",
   "reportDailyCurveChart",
   "reportIntervalChart",
   "reportPzuHeatmap",
@@ -4127,6 +4466,117 @@ const ADVANCED_CHART_IDS = [
   "reportStorageOpportunityChart",
   "reportPeakShavingChart",
 ];
+
+const REPORT_TYPE_CONFIG = {
+  executive: {
+    label: "EnergyPilot Executive Report",
+    focus: "Full executive PDF for client meetings",
+  },
+  procurement: {
+    label: "Procurement Intelligence Report",
+    focus: "Energy Profile, procurement persona, risk and sourcing strategy",
+  },
+  commercial: {
+    label: "Commercial Opportunity Report",
+    focus: "Opportunity ranking, potential savings and recommended actions",
+  },
+  bess: {
+    label: "BESS Opportunity Report",
+    focus: "Storage score, peak shaving, ROI narrative and BESS recommendation",
+  },
+  solar: {
+    label: "Solar Opportunity Report",
+    focus: "Solar fit, estimated self consumption, PV expansion and savings",
+  },
+  management: {
+    label: "Management Summary",
+    focus: "One-page management summary with score, savings and next action",
+  },
+};
+
+function activeReportConfig() {
+  return REPORT_TYPE_CONFIG[state.activeReportType] || REPORT_TYPE_CONFIG.executive;
+}
+
+function buildReportActionPlan(data) {
+  const commercial = data.commercialOpportunity || {};
+  const top = commercial.topOpportunities?.[0] || commercial.opportunities?.[0];
+  const second = commercial.topOpportunities?.[1] || commercial.opportunities?.[1];
+  const third = commercial.topOpportunities?.[2] || commercial.opportunities?.[2];
+  return [
+    {
+      title: top ? top.name : "Complete analysis",
+      description: top?.action || "Complete consumption curves and PZU prices.",
+      impact: top ? formatLei(top.estimatedSavingsLei || 0) : "Data quality",
+      timeline: top ? "0-2 weeks" : "Immediate",
+    },
+    {
+      title: second ? second.name : "Validate opportunity",
+      description: second?.action || "Validate contract, ATR and technical assumptions.",
+      impact: second ? formatLei(second.estimatedSavingsLei || 0) : "Qualification",
+      timeline: "2-4 weeks",
+    },
+    {
+      title: third ? third.name : "Prepare commercial discussion",
+      description: third?.action || data.salesIntelligence?.nextBestAction || "Prepare client meeting and executive pitch.",
+      impact: third ? formatLei(third.estimatedSavingsLei || 0) : "Commercial readiness",
+      timeline: "Next meeting",
+    },
+  ];
+}
+
+function setActiveReportType(type = "executive") {
+  state.activeReportType = REPORT_TYPE_CONFIG[type] ? type : "executive";
+  document.querySelectorAll("[data-report-type]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.reportType === state.activeReportType);
+  });
+  if (state.advancedReport) renderReportCenter(state.advancedReport);
+}
+
+function renderReportCenter(data) {
+  if (!$("reportEmptyState") || !data) return;
+  const config = activeReportConfig();
+  const commercial = data.commercialOpportunity || {};
+  const sales = data.salesIntelligence || {};
+  const hasEnoughData = Boolean(data.hasConsumption);
+  const top = commercial.topOpportunities?.[0] || commercial.opportunities?.[0];
+  $("reportEmptyState")?.classList.toggle("is-hidden", hasEnoughData);
+  setText("advancedReportHeading", "Reports");
+  setText(
+    "advancedReportStatus",
+    hasEnoughData
+      ? `${config.label} ready. ${config.focus}.`
+      : "Generate professional reports for client meetings and internal sales support.",
+  );
+  setText(
+    "reportExecutiveSummary",
+    sales.executiveSummary ||
+      commercial.salesStory ||
+      "Insufficient data available for report generation. Please complete the analysis first.",
+  );
+  fillInsightList("reportGeneratedInsights", [
+    data.procurementDna?.finalOutput ? `Energy Profile: ${data.procurementDna.finalOutput}` : null,
+    `Commercial Opportunity Score: ${numberFormat.format(commercial.score || 0)} / 100`,
+    `Estimated Annual Savings: ${formatLei(commercial.estimatedAnnualSavingsLei || 0)}`,
+    Number.isFinite(data.procurementDna?.riskScore) ? `Risk Level: ${energyRiskLevel(data.procurementDna.riskScore)}` : null,
+    top ? `Top Opportunity: ${top.name}` : null,
+  ]);
+  fillInsightList("reportRecommendedActions", [
+    sales.nextBestAction || top?.action || "Complete consumption data and PZU prices.",
+    data.procurementDna?.contractRecommendation ? `Contract: ${data.procurementDna.contractRecommendation}` : null,
+    data.opportunity?.efficiencyRecommendation ? `Efficiency: ${data.opportunity.efficiencyRecommendation}` : null,
+  ]);
+  const plan = buildReportActionPlan(data);
+  [
+    ["reportPriorityOne", "reportPriorityOneMeta"],
+    ["reportPriorityTwo", "reportPriorityTwoMeta"],
+    ["reportPriorityThree", "reportPriorityThreeMeta"],
+  ].forEach(([titleId, metaId], index) => {
+    const item = plan[index];
+    setText(titleId, item.title);
+    setText(metaId, `${item.description} | ${item.impact} | ${item.timeline}`);
+  });
+}
 
 function sumRowsMwh(rows = [], predicate = () => true) {
   return rows.reduce((sum, row, index) => {
@@ -4169,10 +4619,10 @@ function buildAdvancedReportData(profile, metrics, analytics, opportunity, contr
   const hasPrices = priceRowsWithCost(rows).length > 0;
   const totalConsumption = metrics.totalConsumption || annual.consumptionMwh || 0;
   const intervalRows = [
-    { label: "00:00-06:00", start: 0, end: 6, color: "#2b6cb0" },
-    { label: "06:00-12:00", start: 6, end: 12, color: "#8aa3b8" },
-    { label: "12:00-18:00", start: 12, end: 18, color: "#78bd35" },
-    { label: "18:00-24:00", start: 18, end: 24, color: "#c65050" },
+    { label: "00:00-06:00", start: 0, end: 6, color: "#334155" },
+    { label: "06:00-12:00", start: 6, end: 12, color: "#94A3B8" },
+    { label: "12:00-18:00", start: 12, end: 18, color: "#10B981" },
+    { label: "18:00-24:00", start: 18, end: 24, color: "#EF4444" },
   ].map((interval) => {
     const mwh = sumRowsMwh(rows, (row, index) => {
       const hour = rowHour(row, index);
@@ -4317,10 +4767,10 @@ function drawReportHeatmap(canvasId, title, rows, valueGetter, colorStops) {
     ctx.fillStyle = colorStops(pct);
     ctx.fillRect(x, y, Math.max(1, cellW), Math.max(1, cellH));
   });
-  ctx.strokeStyle = "#d9e3eb";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.strokeRect(paddingLeft, paddingTop, plotW, plotH);
-  ctx.fillStyle = "#526b72";
-  ctx.font = "700 10px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "700 10px Plus Jakarta Sans, Inter, Arial";
   ctx.textAlign = "right";
   [0, 6, 12, 18, 23].forEach((hour) => {
     const y = paddingTop + hour * cellH + 4;
@@ -4342,8 +4792,8 @@ function drawReportHeatmap(canvasId, title, rows, valueGetter, colorStops) {
     ctx.fillStyle = colorStops(index / (legendW - 1));
     ctx.fillRect(legendX + index, legendY, 1, legendH);
   }
-  ctx.fillStyle = "#526b72";
-  ctx.font = "800 10px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "800 10px Plus Jakarta Sans, Inter, Arial";
   ctx.textAlign = "left";
   ctx.fillText("Min", legendX, legendY + 22);
   ctx.textAlign = "right";
@@ -4357,7 +4807,83 @@ function drawReportDailyCurve(hourlyProfile = []) {
   const { ctx, width, height } = prepareChartCanvas(canvas, 560, 320);
   drawProcurementChartFrame(ctx, width, height, "Curba medie zilnica de consum");
   const rows = hourlyProfile.map((row) => ({ label: String(row.hour).padStart(2, "0"), value: Number(row.averageConsumptionMw) || 0 }));
-  drawSimpleLine(ctx, width, height, rows, "#4f9b27", "MW mediu");
+  drawSimpleLine(ctx, width, height, rows, "#10B981", "MW mediu");
+}
+
+function drawReportLoadDurationChart(loadDna) {
+  const canvas = $("reportLoadDurationChart");
+  if (!canvas) return;
+  const { ctx, width, height } = prepareChartCanvas(canvas, 1120, 340);
+  drawProcurementChartFrame(ctx, width, height, "Load Duration Curve");
+  const points = loadDna?.points || [];
+  const max = Math.max(...points.map((point) => Number(point.value) || 0), 1);
+  const paddingLeft = 64;
+  const paddingRight = 30;
+  const paddingTop = 62;
+  const paddingBottom = 52;
+  const plotW = width - paddingLeft - paddingRight;
+  const plotH = height - paddingTop - paddingBottom;
+
+  ctx.strokeStyle = "#E2E8F0";
+  ctx.lineWidth = 1;
+  for (let index = 0; index <= 4; index += 1) {
+    const y = paddingTop + (plotH / 4) * index;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#E2E8F0";
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, height - paddingBottom);
+  ctx.lineTo(width - paddingRight, height - paddingBottom);
+  ctx.stroke();
+
+  if (!points.length) {
+    ctx.fillStyle = "#64748B";
+    ctx.font = "800 14px Plus Jakarta Sans, Inter, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Additional consumption history required.", paddingLeft + plotW / 2, paddingTop + plotH / 2);
+    ctx.textAlign = "left";
+    return;
+  }
+
+  ctx.strokeStyle = "#10B981";
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const x = paddingLeft + (points.length === 1 ? 0 : (plotW / (points.length - 1)) * index);
+    const y = height - paddingBottom - ((Number(point.value) || 0) / max) * plotH;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  [
+    { label: "Base Load", value: loadDna.baseloadMw, color: "#334155" },
+    { label: "Peak Load", value: loadDna.peakloadMw, color: "#EF4444" },
+  ]
+    .filter((item) => Number.isFinite(item.value))
+    .forEach((item, index) => {
+      const y = height - paddingBottom - (item.value / max) * plotH;
+      ctx.strokeStyle = item.color;
+      ctx.setLineDash([7, 6]);
+      ctx.beginPath();
+      ctx.moveTo(paddingLeft, y);
+      ctx.lineTo(width - paddingRight, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = item.color;
+      ctx.font = "800 11px Plus Jakarta Sans, Inter, Arial";
+      ctx.textAlign = "right";
+      ctx.fillText(`${item.label}: ${numberFormat.format(item.value)} MW`, width - paddingRight - 8, y - 6 - index * 2);
+    });
+  ctx.fillStyle = "#64748B";
+  ctx.font = "700 11px Plus Jakarta Sans, Inter, Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("Ore sortate descrescator", paddingLeft + plotW / 2, height - 16);
+  ctx.textAlign = "left";
 }
 
 function drawSimpleLine(ctx, width, height, rows, color, yLabel) {
@@ -4368,7 +4894,7 @@ function drawSimpleLine(ctx, width, height, rows, color, yLabel) {
   const paddingBottom = 44;
   const plotW = width - paddingLeft - paddingRight;
   const plotH = height - paddingTop - paddingBottom;
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
   for (let index = 0; index <= 4; index += 1) {
     const y = paddingTop + (plotH / 4) * index;
@@ -4377,14 +4903,14 @@ function drawSimpleLine(ctx, width, height, rows, color, yLabel) {
     ctx.lineTo(width - paddingRight, y);
     ctx.stroke();
   }
-  ctx.strokeStyle = "#cbd6de";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
   ctx.lineTo(paddingLeft, height - paddingBottom);
   ctx.lineTo(width - paddingRight, height - paddingBottom);
   ctx.stroke();
-  ctx.fillStyle = "#526b72";
-  ctx.font = "700 11px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "700 11px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText(yLabel, 24, paddingTop - 18);
   ctx.strokeStyle = color;
   ctx.lineWidth = 2.6;
@@ -4399,8 +4925,8 @@ function drawSimpleLine(ctx, width, height, rows, color, yLabel) {
   rows.forEach((row, index) => {
     if (index % Math.ceil(rows.length / 8) !== 0 && index !== rows.length - 1) return;
     const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
-    ctx.fillStyle = "#526b72";
-    ctx.font = "700 10px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "700 10px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText(String(row.label || ""), x, height - 16);
   });
@@ -4422,21 +4948,21 @@ function drawReportScatter(rows = []) {
   const paddingBottom = 48;
   const plotW = width - paddingLeft - paddingRight;
   const plotH = height - paddingTop - paddingBottom;
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
   ctx.lineTo(paddingLeft, height - paddingBottom);
   ctx.lineTo(width - paddingRight, height - paddingBottom);
   ctx.stroke();
-  ctx.fillStyle = "#526b72";
-  ctx.font = "700 11px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "700 11px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText("MWh", 24, paddingTop - 18);
   ctx.textAlign = "center";
   ctx.fillText("Pret PZU lei/MWh", paddingLeft + plotW / 2, height - 14);
   sample.forEach((row) => {
     const x = paddingLeft + (row.price / maxPrice) * plotW;
     const y = height - paddingBottom - (row.consumption / maxConsumption) * plotH;
-    ctx.fillStyle = "rgba(79, 155, 39, 0.38)";
+    ctx.fillStyle = "rgba(16, 185, 129, 0.38)";
     ctx.beginPath();
     ctx.arc(x, y, 2.2, 0, Math.PI * 2);
     ctx.fill();
@@ -4461,15 +4987,15 @@ function drawReportPmpVsAverage(monthly = []) {
   const paddingBottom = 48;
   const plotW = width - paddingLeft - paddingRight;
   const plotH = height - paddingTop - paddingBottom;
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
   ctx.lineTo(paddingLeft, height - paddingBottom);
   ctx.lineTo(width - paddingRight, height - paddingBottom);
   ctx.stroke();
   [
-    { key: "pmp", color: "#4f9b27", label: "PMP Client" },
-    { key: "avg", color: "#8aa3b8", label: "Media PZU" },
+    { key: "pmp", color: "#10B981", label: "PMP Client" },
+    { key: "avg", color: "#94A3B8", label: "Media PZU" },
   ].forEach((serie, serieIndex) => {
     ctx.strokeStyle = serie.color;
     ctx.lineWidth = 2.5;
@@ -4483,14 +5009,14 @@ function drawReportPmpVsAverage(monthly = []) {
     ctx.stroke();
     ctx.fillStyle = serie.color;
     ctx.fillRect(paddingLeft + serieIndex * 126, 42, 12, 12);
-    ctx.fillStyle = "#526b72";
-    ctx.font = "700 11px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "700 11px Plus Jakarta Sans, Inter, Arial";
     ctx.fillText(serie.label, paddingLeft + 18 + serieIndex * 126, 52);
   });
   rows.forEach((row, index) => {
     const x = paddingLeft + (rows.length <= 1 ? plotW / 2 : (plotW / (rows.length - 1)) * index);
-    ctx.fillStyle = "#526b72";
-    ctx.font = "700 10px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "700 10px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText(row.label, x, height - 16);
   });
@@ -4511,8 +5037,8 @@ function drawReportTopCostHours(costDna) {
   const plotW = width - paddingLeft - paddingRight;
   const rowH = rows.length ? (height - paddingTop - paddingBottom) / rows.length : 24;
   if (!rows.length) {
-    ctx.fillStyle = "#526b72";
-    ctx.font = "800 14px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "800 14px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText("Preturile PZU sunt necesare pentru analiza costului.", width / 2, height / 2);
     ctx.textAlign = "left";
@@ -4522,10 +5048,10 @@ function drawReportTopCostHours(costDna) {
     const y = paddingTop + index * rowH + rowH * 0.18;
     const barH = Math.max(8, rowH * 0.58);
     const barW = ((Number(row.cost) || 0) / max) * plotW;
-    ctx.fillStyle = "#4f9b27";
+    ctx.fillStyle = "#10B981";
     ctx.fillRect(paddingLeft, y, barW, barH);
-    ctx.fillStyle = "#0a1d32";
-    ctx.font = "800 10px Montserrat, Arial";
+    ctx.fillStyle = "#0F172A";
+    ctx.font = "800 10px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "right";
     ctx.fillText(String(row.timestamp || "").replace(":00", ""), paddingLeft - 10, y + barH * 0.72);
     ctx.textAlign = "left";
@@ -4543,8 +5069,9 @@ function drawAdvancedReportCharts(data) {
     (row) => Number(row.consumption_mwh) || 0,
     (pct) => colorScale(CONSUMPTION_HEATMAP_STOPS, pct),
   );
+  drawReportLoadDurationChart(data.loadDna);
   drawReportDailyCurve(data.hourlyProfile);
-  drawProcurementBars("reportIntervalChart", "Consum pe intervale orare", data.intervalRows, { color: "#4f9b27" });
+  drawProcurementBars("reportIntervalChart", "Consum pe intervale orare", data.intervalRows, { color: "#10B981" });
   if (data.hasPrices) {
     drawReportHeatmap(
       "reportPzuHeatmap",
@@ -4555,26 +5082,26 @@ function drawAdvancedReportCharts(data) {
     );
     drawReportScatter(data.rows);
     drawReportPmpVsAverage(data.monthly);
-    drawProcurementBars("reportCostDistributionChart", "Distributia costului pe categorii PZU", data.costDna.distribution || [], { color: "#4f9b27" });
+    drawProcurementBars("reportCostDistributionChart", "Distributia costului pe categorii PZU", data.costDna.distribution || [], { color: "#10B981" });
     drawReportTopCostHours(data.costDna);
-    drawProcurementBars("reportMonthlyCostChart", "Cost lunar estimat", data.costMonthly, { color: "#4f9b27", fallbackWidth: 1120, fallbackHeight: 340 });
+    drawProcurementBars("reportMonthlyCostChart", "Cost lunar estimat", data.costMonthly, { color: "#10B981", fallbackWidth: 1120, fallbackHeight: 340 });
   }
   drawProcurementBars("reportSolarOpportunityChart", "Solar Opportunity", [
-    { label: "Consum 08-18", value: data.solarMwh, color: "#f0c23a" },
-    { label: "Restul zilei", value: Math.max(0, data.metrics.totalConsumption - data.solarMwh), color: "#8aa3b8" },
+    { label: "Consum 08-18", value: data.solarMwh, color: "#F59E0B" },
+    { label: "Restul zilei", value: Math.max(0, data.metrics.totalConsumption - data.solarMwh), color: "#94A3B8" },
   ]);
   drawProcurementBars("reportStorageOpportunityChart", "Storage Opportunity", [
-    { label: "Ore ieftine", value: data.cheapMwh, color: "#2b6cb0" },
-    { label: "Ore scumpe", value: data.expensiveMwh, color: "#c65050" },
-    { label: "18-22", value: data.eveningMwh, color: "#4f9b27" },
+    { label: "Ore ieftine", value: data.cheapMwh, color: "#334155" },
+    { label: "Ore scumpe", value: data.expensiveMwh, color: "#EF4444" },
+    { label: "18-22", value: data.eveningMwh, color: "#10B981" },
   ]);
   drawProcurementBars(
     "reportPeakShavingChart",
     "Peak Shaving Potential",
     [
-      { label: "Baseload", value: data.loadDna.baseloadMw || 0, color: "#2b6cb0" },
-      { label: "Midload", value: data.loadDna.midloadMw || 0, color: "#8aa3b8" },
-      { label: "Peakload", value: data.loadDna.peakloadMw || 0, color: "#c65050" },
+      { label: "Baseload", value: data.loadDna.baseloadMw || 0, color: "#334155" },
+      { label: "Midload", value: data.loadDna.midloadMw || 0, color: "#94A3B8" },
+      { label: "Peakload", value: data.loadDna.peakloadMw || 0, color: "#EF4444" },
     ],
     { fallbackWidth: 1120, fallbackHeight: 320 },
   );
@@ -4605,6 +5132,7 @@ function renderAdvancedReport(profile, metrics, analytics, opportunity, contract
   setText("reportOpportunityText", data.opportunityText);
   $("advancedMarketSection")?.classList.toggle("is-hidden", !data.hasPrices);
   $("advancedCostSection")?.classList.toggle("is-hidden", !data.hasPrices);
+  renderReportCenter(data);
   drawAdvancedReportCharts(data);
 }
 
@@ -4629,6 +5157,10 @@ function generateAdvancedPdfReport() {
   renderConsumptionProfile();
   const data = state.advancedReport;
   if (!data) return;
+  if (!data.hasConsumption) {
+    setMessages(["Insufficient data available for report generation. Please complete the analysis first."], true);
+    return;
+  }
   const popup = window.open("", "_blank");
   if (!popup) {
     setMessages(["Browserul a blocat fereastra de raport. Permite pop-up pentru a genera PDF."], true);
@@ -4640,6 +5172,7 @@ function generateAdvancedPdfReport() {
     const image = chartImages.find((item) => item.id === id);
     return image ? `<figure><img src="${image.src}" alt="${escapeHtml(caption)}" /><figcaption>${escapeHtml(caption)}</figcaption></figure>` : "";
   };
+  const reportConfig = activeReportConfig();
   const commercial = data.commercialOpportunity || { score: 0, label: "Limited Opportunity", estimatedAnnualSavingsLei: 0, topOpportunities: [], salesStory: "" };
   const sales = data.salesIntelligence || {
     executiveSummary: "Sales Intelligence insights pending. Additional consumption and market data required.",
@@ -4651,121 +5184,206 @@ function generateAdvancedPdfReport() {
     meetingBrief: [],
     nextBestAction: "",
   };
+  const topOpportunity = commercial.topOpportunities?.[0] || commercial.opportunities?.[0];
+  const opportunityRows = (commercial.opportunities || []).map((item, index) => {
+    const status = opportunityStatusMeta(item.score);
+    return `<tr><td>${index + 1}</td><td>${escapeHtml(item.name)}</td><td>${numberFormat.format(item.score || 0)}%</td><td>${escapeHtml(status.priority)}</td><td>${escapeHtml(formatLei(item.estimatedSavingsLei || 0))}</td><td>${escapeHtml(item.action)}</td></tr>`;
+  }).join("");
   const topOpportunityList = commercial.topOpportunities?.length
     ? commercial.topOpportunities
         .map((item) => `<li><strong>${escapeHtml(item.name)}</strong>: ${numberFormat.format(item.score)}% | ${escapeHtml(formatLei(item.estimatedSavingsLei))} | ${escapeHtml(item.action)}</li>`)
         .join("")
-    : "<li>Introdu curbele orare de consum pentru prioritizare comerciala.</li>";
+    : "<li>Complete consumption curves and PZU prices for commercial prioritization.</li>";
   const listHtml = (items = []) => items.length ? items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>In asteptare.</li>";
   const talkingPointsHtml = (sales.talkingPoints || []).map((item) => `<li><strong>${escapeHtml(item.name)}</strong>: ${escapeHtml(item.text)}</li>`).join("");
   const confidenceHtml = (sales.confidence || []).map((item) => `<li><strong>${escapeHtml(item.name)}</strong>: ${numberFormat.format(item.score || 0)}% - ${escapeHtml(item.reason)}</li>`).join("");
   const objectionsHtml = (sales.objections || []).map((item) => `<li><strong>${escapeHtml(item.objection)}</strong>: ${escapeHtml(item.response)}</li>`).join("");
+  const plan = buildReportActionPlan(data);
+  const actionRows = plan
+    .map((item, index) => `<tr><td>Priority ${index + 1}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.description)}</td><td>${escapeHtml(item.impact)}</td><td>${escapeHtml(item.timeline)}</td></tr>`)
+    .join("");
+  const breakdownItems = (commercial.opportunities || []).slice(0, 6);
+  const maxSavings = Math.max(...breakdownItems.map((item) => Number(item.estimatedSavingsLei) || 0), 1);
+  const impactBreakdown = breakdownItems.length
+    ? breakdownItems
+        .map((item) => {
+          const width = Math.max(3, ((Number(item.estimatedSavingsLei) || 0) / maxSavings) * 100);
+          return `<div class="impact-row"><span>${escapeHtml(item.name)}</span><div><i style="width:${width}%"></i></div><strong>${escapeHtml(formatLei(item.estimatedSavingsLei || 0))}</strong></div>`;
+        })
+        .join("")
+    : `<p>Insufficient data available for impact breakdown.</p>`;
+  const storageOpportunity = (commercial.opportunities || []).find((item) => item.key === "storage") || {};
+  const solarOpportunity = (commercial.opportunities || []).find((item) => item.key === "solar") || {};
+  const profilePersona = procurementPersonaFromDna(data.procurementDna);
+  const managementOnly = state.activeReportType === "management";
+  const commonKpis = `
+    <div class="kpi"><span>Commercial Opportunity Score</span><strong>${numberFormat.format(commercial.score || 0)} / 100</strong></div>
+    <div class="kpi"><span>Estimated Annual Savings</span><strong>${escapeHtml(formatLei(commercial.estimatedAnnualSavingsLei || 0))}</strong></div>
+    <div class="kpi"><span>Top Opportunity</span><strong>${escapeHtml(topOpportunity?.name || "Pending")}</strong></div>
+    <div class="kpi"><span>Recommended Action</span><strong>${escapeHtml(sales.nextBestAction || topOpportunity?.action || "Complete analysis")}</strong></div>`;
+  const managementSummary = `
+    <section class="page">
+      <div class="cover-brand"><div class="pdf-lockup"><b>EP</b><strong>ENERGYPILOT</strong></div><span>Management Summary</span></div>
+      <h1>${escapeHtml(contract.clientName || "Client")} - Management Summary</h1>
+      <p class="subtitle">Energy Sales Intelligence Platform. Navigate every energy opportunity.</p>
+      <div class="grid four">${commonKpis}</div>
+      <div class="callout"><strong>Executive Summary</strong><p>${escapeHtml(sales.executiveSummary || commercial.salesStory || "")}</p></div>
+      <h2>Recommended Action</h2>
+      <table><tbody>${actionRows}</tbody></table>
+    </section>`;
   const html = `<!doctype html>
     <html lang="ro">
       <head>
         <meta charset="utf-8" />
-        <title>Raport profil consum - ${escapeHtml(contract.clientName || "Client")}</title>
+        <title>${escapeHtml(reportConfig.label)} - ${escapeHtml(contract.clientName || "Client")}</title>
         <style>
           @page { size: A4 landscape; margin: 12mm; }
-          body { margin: 0; color: #0a1d32; background: #ffffff; font-family: Arial, sans-serif; }
+          body { margin: 0; color: #0F172A; background: #ffffff; font-family: 'Plus Jakarta Sans', Inter, Arial, sans-serif; }
           .page { page-break-after: always; padding: 12px 0; }
           .page:last-child { page-break-after: auto; }
-          h1 { margin: 0 0 8px; font-size: 26px; }
-          h2 { margin: 0 0 12px; padding: 8px 10px; background: #06152c; color: #fff; border-radius: 4px; font-size: 18px; }
+          h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: 0; }
+          h2 { margin: 0 0 12px; padding: 8px 10px; background: #0F172A; color: #fff; border-radius: 4px; font-size: 18px; }
           h3 { margin: 10px 0 6px; font-size: 15px; }
           p { font-size: 13px; line-height: 1.45; }
-          .brand { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #4f9b27; padding-bottom: 10px; margin-bottom: 12px; }
-          .brand strong { font-size: 22px; }
-          .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-          .kpi { border: 1px solid #d9e3eb; background: #f6faf7; border-radius: 5px; padding: 9px; }
-          .kpi span { display: block; color: #526b72; font-size: 11px; font-weight: 700; }
+          .cover { min-height: 170mm; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(135deg, #0F172A 0%, #334155 100%); color: #fff; border-radius: 8px; padding: 28px; }
+          .cover-brand, .brand { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #10B981; padding-bottom: 10px; margin-bottom: 12px; }
+          .cover-brand strong, .brand strong { font-size: 24px; }
+          .pdf-lockup { display: inline-flex; align-items: center; gap: 10px; }
+          .pdf-lockup b { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: #ffffff; color: #0F172A; box-shadow: inset 0 -3px 0 #10B981; font-size: 13px; }
+          .cover h1 { max-width: 760px; font-size: 44px; }
+          .cover .subtitle { max-width: 700px; color: rgba(255,255,255,0.82); font-size: 17px; }
+          .cover-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+          .cover-meta div { border: 1px solid rgba(255,255,255,0.24); border-radius: 6px; padding: 10px; }
+          .cover-meta span, .kpi span { display: block; color: #64748B; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+          .cover-meta span { color: rgba(255,255,255,0.68); }
+          .cover-meta strong { display: block; margin-top: 4px; font-size: 17px; }
+          .subtitle { color: #64748B; font-size: 14px; font-weight: 700; }
+          .grid { display: grid; gap: 8px; }
+          .grid.four { grid-template-columns: repeat(4, 1fr); }
+          .grid.three { grid-template-columns: repeat(3, 1fr); }
+          .grid.two { grid-template-columns: repeat(2, 1fr); }
+          .kpi { border: 1px solid #E2E8F0; background: #F8FAFC; border-radius: 5px; padding: 9px; }
           .kpi strong { display: block; margin-top: 4px; font-size: 17px; }
-          figure { margin: 8px 0; border: 1px solid #d9e3eb; border-radius: 5px; padding: 6px; }
+          .callout { border-left: 5px solid #10B981; background: #F8FAFC; padding: 12px; margin: 12px 0; border-radius: 4px; }
+          figure { margin: 8px 0; border: 1px solid #E2E8F0; border-radius: 5px; padding: 6px; }
           figure img { width: 100%; display: block; }
-          figcaption { margin-top: 4px; color: #526b72; font-size: 11px; font-weight: 700; }
+          figcaption { margin-top: 4px; color: #64748B; font-size: 11px; font-weight: 700; }
           .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th { background: #F8FAFC; color: #0F172A; font-weight: 800; }
+          th, td { border: 1px solid #E2E8F0; padding: 7px; font-size: 12px; vertical-align: top; }
           ul { margin-top: 8px; }
           li { margin-bottom: 6px; font-size: 13px; }
+          .impact-row { display: grid; grid-template-columns: 210px 1fr 150px; align-items: center; gap: 10px; margin: 8px 0; font-size: 12px; font-weight: 700; }
+          .impact-row div { height: 14px; background: #E2E8F0; border-radius: 999px; overflow: hidden; }
+          .impact-row i { display: block; height: 100%; background: #10B981; }
         </style>
       </head>
       <body>
+        ${managementOnly ? managementSummary : `
+        <section class="page">
+          <div class="cover">
+            <div class="cover-brand"><div class="pdf-lockup"><b>EP</b><strong>ENERGYPILOT</strong></div><span>Energy Sales Intelligence Platform</span></div>
+            <div>
+              <h1>${escapeHtml(reportConfig.label)}</h1>
+              <p class="subtitle">Navigate every energy opportunity.</p>
+            </div>
+            <div class="cover-meta">
+              <div><span>Client Name</span><strong>${escapeHtml(contract.clientName || "Client")}</strong></div>
+              <div><span>Analysis Period</span><strong>${selectedYear()}</strong></div>
+              <div><span>Generation Date</span><strong>${escapeHtml(dateTimeFormat.format(new Date()))}</strong></div>
+              <div><span>Generated by</span><strong>EnergyPilot</strong></div>
+            </div>
+          </div>
+        </section>
         <section class="page">
           <div class="brand"><strong>ENERGYPILOT</strong><span>${escapeHtml(dateTimeFormat.format(new Date()))}</span></div>
-          <h1>Executive Summary</h1>
-          <h2>Executive Opportunity Summary</h2>
-          <div class="grid">
-            <div class="kpi"><span>Client</span><strong>${escapeHtml(contract.clientName || "Client")}</strong></div>
-            <div class="kpi"><span>Perioada analizata</span><strong>${selectedYear()}</strong></div>
-            <div class="kpi"><span>Commercial Opportunity Score</span><strong>${numberFormat.format(commercial.score || 0)} / 100</strong></div>
-            <div class="kpi"><span>Potential comercial</span><strong>${escapeHtml(commercial.label || "Limited Opportunity")}</strong></div>
-            <div class="kpi"><span>Estimated Annual Savings</span><strong>${escapeHtml(formatLei(commercial.estimatedAnnualSavingsLei || 0))}</strong></div>
-            <div class="kpi"><span>Consum anual</span><strong>${numberFormat.format(data.metrics.totalConsumption || 0)} MWh</strong></div>
-            <div class="kpi"><span>PMP Client</span><strong>${data.hasPrices ? numberFormat.format(data.annual.pmpPzuLeiMwh || 0) : "N/A"} lei/MWh</strong></div>
-            <div class="kpi"><span>Consum zi</span><strong>${numberFormat.format(data.dayMwh)} MWh / ${numberFormat.format(data.dayPct)}%</strong></div>
-            <div class="kpi"><span>Consum noapte</span><strong>${numberFormat.format(data.nightMwh)} MWh / ${numberFormat.format(data.nightPct)}%</strong></div>
-            <div class="kpi"><span>Varf consum</span><strong>${numberFormat.format(data.metrics.peakMw || 0)} MW</strong></div>
-            <div class="kpi"><span>Medie orara</span><strong>${numberFormat.format(data.metrics.averageMw || 0)} MW</strong></div>
-            <div class="kpi"><span>Load factor</span><strong>${numberFormat.format(data.metrics.loadFactorPct || 0)}%</strong></div>
-            <div class="kpi"><span>Scor risc sourcing</span><strong>${numberFormat.format(data.metrics.sourcingRiskScore || 0)}%</strong></div>
-            <div class="kpi"><span>Energy Profile Intelligence</span><strong>${escapeHtml(data.procurementDna.finalOutput || "-")}</strong></div>
-            <div class="kpi"><span>Recomandare contract</span><strong>${escapeHtml(data.procurementDna.contractRecommendation || "-")}</strong></div>
-            <div class="kpi"><span>Recomandare eficientizare</span><strong>${escapeHtml(data.opportunity.efficiencyRecommendation || "-")}</strong></div>
-            <div class="kpi"><span>Cost Concentration</span><strong>${Number.isFinite(data.costDna.concentrationIndex) ? numberFormat.format(data.costDna.concentrationIndex) : "N/A"}</strong></div>
+          <h1>Page 1 - Executive Opportunity Summary</h1>
+          <div class="grid four">
+            ${commonKpis}
           </div>
+          <div class="callout"><strong>Executive Pitch</strong><p>${escapeHtml(sales.executivePitch || sales.executiveSummary || commercial.salesStory || "")}</p></div>
           <h3>Top Opportunities Identified</h3>
           <ul>${topOpportunityList}</ul>
-          <p>${escapeHtml(sales.executiveSummary || commercial.salesStory || "")}</p>
-          <p><strong>Executive Pitch:</strong> ${escapeHtml(sales.executivePitch || "")}</p>
-          <h2>Dashboard Executive</h2>
-          <p>${escapeHtml(data.procurementDna.reportText || data.consumptionText)}</p>
         </section>
         <section class="page">
-          <h2>Client Story</h2>
-          <h3>Why This Client?</h3>
-          <ul>${listHtml(sales.whyThisClient)}</ul>
-          <h3>Sales Talking Points</h3>
-          <ul>${talkingPointsHtml || "<li>In asteptare.</li>"}</ul>
-          <h3>Opportunity Confidence Score</h3>
-          <ul>${confidenceHtml || "<li>In asteptare.</li>"}</ul>
+          <h2>Page 2 - Client Energy Profile</h2>
+          <div class="grid four">
+            <div class="kpi"><span>Energy Profile</span><strong>${escapeHtml(data.procurementDna.finalOutput || "-")}</strong></div>
+            <div class="kpi"><span>Procurement Persona</span><strong>${escapeHtml(profilePersona)}</strong></div>
+            <div class="kpi"><span>Commercial Potential</span><strong>${numberFormat.format(commercial.score || 0)} / 100</strong></div>
+            <div class="kpi"><span>Forecastability</span><strong>${numberFormat.format(data.procurementDna.forecastabilityScore || 0)}%</strong></div>
+            <div class="kpi"><span>Risk Level</span><strong>${escapeHtml(energyRiskLevel(data.procurementDna.riskScore))}</strong></div>
+            <div class="kpi"><span>Consum anual</span><strong>${numberFormat.format(data.metrics.totalConsumption || 0)} MWh</strong></div>
+            <div class="kpi"><span>Consum zi</span><strong>${numberFormat.format(data.dayMwh)} MWh / ${numberFormat.format(data.dayPct)}%</strong></div>
+            <div class="kpi"><span>Consum noapte</span><strong>${numberFormat.format(data.nightMwh)} MWh / ${numberFormat.format(data.nightPct)}%</strong></div>
+          </div>
+          <div class="callout"><strong>Energy Profile Summary</strong><p>${escapeHtml(data.procurementDna.reportText || data.consumptionText)}</p></div>
         </section>
         <section class="page">
-          <h2>Recommended Actions & Next Steps</h2>
-          <p><strong>Next Best Action:</strong> ${escapeHtml(sales.nextBestAction || "In asteptare.")}</p>
+          <h2>Page 3 - Commercial Opportunities</h2>
+          <table>
+            <thead><tr><th>#</th><th>Opportunity</th><th>Score</th><th>Priority</th><th>Potential Savings</th><th>Recommended Action</th></tr></thead>
+            <tbody>${opportunityRows || `<tr><td colspan="6">Insufficient data available for opportunity ranking.</td></tr>`}</tbody>
+          </table>
+          <h3>Top Opportunities</h3>
+          <ul>${topOpportunityList}</ul>
+        </section>
+        <section class="page">
+          <h2>Page 4 - Financial Impact</h2>
+          <div class="grid four">
+            <div class="kpi"><span>Estimated Annual Savings</span><strong>${escapeHtml(formatLei(commercial.estimatedAnnualSavingsLei || 0))}</strong></div>
+            <div class="kpi"><span>Opportunity Impact</span><strong>${escapeHtml(topOpportunity?.name || "Pending")}</strong></div>
+            <div class="kpi"><span>PMP Client</span><strong>${data.hasPrices ? numberFormat.format(data.annual.pmpPzuLeiMwh || 0) : "N/A"} lei/MWh</strong></div>
+            <div class="kpi"><span>Cost Concentration</span><strong>${Number.isFinite(data.costDna.concentrationIndex) ? numberFormat.format(data.costDna.concentrationIndex) : "N/A"}</strong></div>
+          </div>
+          <h3>Commercial Impact Breakdown</h3>
+          ${impactBreakdown}
+        </section>
+        <section class="page">
+          <h2>Page 5 - Visual Insights</h2>
+          ${img("reportConsumptionHeatmap", "Heatmap consum 24h x 365 zile")}
+          ${img("reportLoadDurationChart", "Load Duration Curve")}
+          <div class="two">${data.hasPrices ? img("reportCostDistributionChart", "Cost Exposure Profile") : ""}${data.hasPrices ? img("reportPzuHeatmap", "PZU Heatmap") : ""}</div>
+        </section>
+        <section class="page">
+          <h2>Page 6 - Recommended Action Plan</h2>
+          <table><thead><tr><th>Priority</th><th>Action</th><th>Description</th><th>Expected Impact</th><th>Estimated Timeline</th></tr></thead><tbody>${actionRows}</tbody></table>
           <h3>Objection Handling</h3>
           <ul>${objectionsHtml || "<li>In asteptare.</li>"}</ul>
+        </section>
+        <section class="page">
+          <h2>Page 7 - Next Steps</h2>
+          <div class="grid three">
+            <div class="kpi"><span>Immediate Actions</span><strong>${escapeHtml(sales.nextBestAction || "Validate data")}</strong></div>
+            <div class="kpi"><span>Recommended Assessment</span><strong>${escapeHtml(data.procurementDna.contractRecommendation || "Energy profile validation")}</strong></div>
+            <div class="kpi"><span>Proposed Commercial Discussion</span><strong>${escapeHtml(topOpportunity?.name || "Opportunity review")}</strong></div>
+          </div>
           <h3>Meeting Brief</h3>
           <ul>${listHtml(sales.meetingBrief)}</ul>
         </section>
         <section class="page">
-          <h2>Profil consum</h2>
-          ${img("reportConsumptionHeatmap", "Heatmap consum 24h x 365 zile")}
-          <div class="two">${img("reportDailyCurveChart", "Curba medie zilnica")}${img("reportIntervalChart", "Consum pe intervale orare")}</div>
-          <p>${escapeHtml(data.consumptionText)}</p>
+          <h2>BESS Opportunity Report</h2>
+          <div class="grid four">
+            <div class="kpi"><span>Storage Opportunity Score</span><strong>${numberFormat.format(storageOpportunity.score || 0)}%</strong></div>
+            <div class="kpi"><span>Potential Savings</span><strong>${escapeHtml(formatLei(storageOpportunity.estimatedSavingsLei || 0))}</strong></div>
+            <div class="kpi"><span>Estimated ROI</span><strong>${(storageOpportunity.estimatedSavingsLei || 0) > 0 ? "Needs CAPEX validation" : "CAPEX required"}</strong></div>
+            <div class="kpi"><span>BESS Recommendation</span><strong>${escapeHtml(storageOpportunity.action || "Launch BESS Opportunity Simulator")}</strong></div>
+          </div>
+          ${img("reportLoadDurationChart", "Load Duration Analysis")}
+          ${img("reportPeakShavingChart", "Peak Shaving Analysis")}
         </section>
         <section class="page">
-          <h2>Profil piata si achizitie</h2>
-          ${data.hasPrices ? `${img("reportPzuHeatmap", "Heatmap PZU")}<div class="two">${img("reportConsumptionPriceScatter", "Consum vs Pret PZU")}${img("reportPmpVsAverageChart", "PMP Client vs Media PZU")}</div>` : ""}
-          <p>${escapeHtml(data.marketText)}</p>
-        </section>
-        <section class="page">
-          <h2>Profil cost</h2>
-          ${data.hasPrices ? `<div class="two">${img("reportCostDistributionChart", "Cost Distribution")}${img("reportTopCostHoursChart", "Top Cost Hours")}</div>${img("reportMonthlyCostChart", "Cost lunar estimat")}` : ""}
-          <p>${escapeHtml(data.costText)}</p>
-        </section>
-        <section class="page">
-          <h2>Oportunitati</h2>
-          <div class="two">${img("reportSolarOpportunityChart", "Solar Opportunity")}${img("reportStorageOpportunityChart", "Storage Opportunity")}</div>
-          ${img("reportPeakShavingChart", "Peak Shaving Potential")}
-          <p>${escapeHtml(data.opportunityText)}</p>
-        </section>
-        <section class="page">
-          <h2>Concluzie</h2>
-          <ul>
-            <li><strong>Recomandare principala:</strong> ${escapeHtml(data.procurementDna.contractRecommendation || "-")}</li>
-            <li><strong>Urmatorii pasi:</strong> validare profil orar complet, scenariu contractual si analiza oportunitati tehnice.</li>
-            <li><strong>Observatie comerciala:</strong> raportul este orientativ si se bazeaza pe datele introduse in curbele consolidate si preturile PZU disponibile.</li>
-          </ul>
-        </section>
+          <h2>Solar Opportunity Report</h2>
+          <div class="grid four">
+            <div class="kpi"><span>Solar Fit</span><strong>${numberFormat.format(data.solarShare || 0)}%</strong></div>
+            <div class="kpi"><span>Estimated Self Consumption</span><strong>${numberFormat.format(data.solarMwh || 0)} MWh</strong></div>
+            <div class="kpi"><span>Solar Opportunity Score</span><strong>${numberFormat.format(solarOpportunity.score || 0)}%</strong></div>
+            <div class="kpi"><span>Potential Savings</span><strong>${escapeHtml(formatLei(solarOpportunity.estimatedSavingsLei || 0))}</strong></div>
+          </div>
+          <div class="callout"><strong>PV Expansion Potential</strong><p>${escapeHtml(solarOpportunity.action || "Dimensionare PV pentru autoconsum 08:00-18:00")}</p></div>
+          <div class="two">${img("reportSolarOpportunityChart", "Solar Opportunity")}${img("reportDailyCurveChart", "Daily Consumption Profile")}</div>
+        </section>`}
         <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
       </body>
     </html>`;
@@ -4871,12 +5489,12 @@ function exportAdvancedDataCsv() {
       <head>
         <meta charset="utf-8" />
         <style>
-          body { font-family: Arial, sans-serif; color: #0a1d32; }
-          h1 { background: #06152c; color: #fff; padding: 12px; }
-          h2 { background: #d7e8f5; color: #154b75; padding: 8px; margin-top: 18px; }
+          body { font-family: 'Plus Jakarta Sans', Inter, Arial, sans-serif; color: #0F172A; }
+          h1 { background: #0F172A; color: #fff; padding: 12px; }
+          h2 { background: #F8FAFC; color: #334155; padding: 8px; margin-top: 18px; }
           table { border-collapse: collapse; width: 100%; margin-bottom: 18px; }
-          th { background: #e8f4eb; color: #0a1d32; font-weight: 700; }
-          th, td { border: 1px solid #b9c8d3; padding: 6px 8px; mso-number-format:"\\@"; }
+          th { background: #F8FAFC; color: #0F172A; font-weight: 700; }
+          th, td { border: 1px solid #E2E8F0; padding: 6px 8px; mso-number-format:"\\@"; }
           td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8) { mso-number-format:"0.00"; }
         </style>
       </head>
@@ -4897,6 +5515,98 @@ function exportAdvancedDataCsv() {
     </html>`;
   const blob = new Blob([`\ufeff${html}`], { type: "application/vnd.ms-excel;charset=utf-8" });
   downloadBlob(blob, `EnergyPilot_Reports_${safeFilenamePart(data.contract.clientName || "Client", "Client")}.xls`);
+}
+
+async function shareReportSummary() {
+  renderConsumptionProfile();
+  const data = state.advancedReport;
+  if (!data || !data.hasConsumption) {
+    setMessages(["Insufficient data available for report generation. Please complete the analysis first."], true);
+    return;
+  }
+  const config = activeReportConfig();
+  const commercial = data.commercialOpportunity || {};
+  const sales = data.salesIntelligence || {};
+  const top = commercial.topOpportunities?.[0] || commercial.opportunities?.[0];
+  const text = [
+    `${config.label} - ${data.contract.clientName || "Client"}`,
+    "EnergyPilot - Energy Sales Intelligence Platform",
+    `Commercial Opportunity Score: ${numberFormat.format(commercial.score || 0)} / 100`,
+    `Estimated Annual Savings: ${formatLei(commercial.estimatedAnnualSavingsLei || 0)}`,
+    `Top Opportunity: ${top?.name || "Pending"}`,
+    `Recommended Action: ${sales.nextBestAction || top?.action || "Complete analysis"}`,
+  ].join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    setMessages(["Rezumatul raportului a fost copiat pentru share."]);
+  } catch {
+    setMessages([text]);
+  }
+}
+
+function exportPowerPointReadyReport() {
+  renderConsumptionProfile();
+  const data = state.advancedReport;
+  if (!data || !data.hasConsumption) {
+    setMessages(["Insufficient data available for report generation. Please complete the analysis first."], true);
+    return;
+  }
+  const config = activeReportConfig();
+  const commercial = data.commercialOpportunity || {};
+  const sales = data.salesIntelligence || {};
+  const chartImages = visibleChartImages();
+  const image = (id, caption) => {
+    const found = chartImages.find((item) => item.id === id);
+    return found ? `<img src="${found.src}" alt="${escapeHtml(caption)}" />` : `<p>${escapeHtml(caption)} unavailable.</p>`;
+  };
+  const top = commercial.topOpportunities?.[0] || commercial.opportunities?.[0];
+  const plan = buildReportActionPlan(data);
+  const slides = [
+    {
+      title: config.label,
+      body: `<h2>${escapeHtml(data.contract.clientName || "Client")}</h2><p>Energy Sales Intelligence Platform. Navigate every energy opportunity.</p>`,
+    },
+    {
+      title: "Executive Opportunity Summary",
+      body: `<div class="kpis"><div><span>Score</span><strong>${numberFormat.format(commercial.score || 0)} / 100</strong></div><div><span>Estimated Savings</span><strong>${escapeHtml(formatLei(commercial.estimatedAnnualSavingsLei || 0))}</strong></div><div><span>Top Opportunity</span><strong>${escapeHtml(top?.name || "Pending")}</strong></div></div><p>${escapeHtml(sales.executiveSummary || commercial.salesStory || "")}</p>`,
+    },
+    {
+      title: "Client Energy Profile",
+      body: `<p>${escapeHtml(data.procurementDna?.reportText || data.consumptionText)}</p><div class="kpis"><div><span>Energy Profile</span><strong>${escapeHtml(data.procurementDna?.finalOutput || "-")}</strong></div><div><span>Risk</span><strong>${escapeHtml(energyRiskLevel(data.procurementDna?.riskScore))}</strong></div></div>`,
+    },
+    {
+      title: "Visual Insights",
+      body: `${image("reportConsumptionHeatmap", "Consumption Heatmap")}${image("reportLoadDurationChart", "Load Duration Curve")}`,
+    },
+    {
+      title: "Commercial Action Plan",
+      body: `<ol>${plan.map((item) => `<li><strong>${escapeHtml(item.title)}</strong><br>${escapeHtml(item.description)}<br>${escapeHtml(item.impact)} | ${escapeHtml(item.timeline)}</li>`).join("")}</ol>`,
+    },
+  ];
+  const html = `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { margin: 0; font-family: 'Plus Jakarta Sans', Inter, Arial, sans-serif; color: #0F172A; }
+          .slide { width: 1280px; min-height: 720px; page-break-after: always; padding: 44px; box-sizing: border-box; }
+          .slide:first-child { background: linear-gradient(135deg, #0F172A, #334155); color: #fff; }
+          h1 { margin: 0 0 24px; font-size: 42px; }
+          h2 { margin: 0 0 16px; font-size: 28px; }
+          p, li { font-size: 22px; line-height: 1.35; }
+          .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0; }
+          .kpis div { border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; background: #F8FAFC; }
+          .kpis span { display: block; color: #64748B; font-size: 15px; font-weight: 800; text-transform: uppercase; }
+          .kpis strong { display: block; margin-top: 8px; font-size: 23px; }
+          img { max-width: 100%; max-height: 270px; object-fit: contain; display: block; margin: 12px 0; border: 1px solid #E2E8F0; }
+        </style>
+      </head>
+      <body>
+        ${slides.map((slide) => `<section class="slide"><h1>${escapeHtml(slide.title)}</h1>${slide.body}</section>`).join("")}
+      </body>
+    </html>`;
+  const blob = new Blob([`\ufeff${html}`], { type: "application/vnd.ms-powerpoint;charset=utf-8" });
+  downloadBlob(blob, `EnergyPilot_${safeFilenamePart(config.label, "Report")}_${safeFilenamePart(data.contract.clientName || "Client", "Client")}.ppt`);
 }
 
 function downloadAdvancedChartImages() {
@@ -4926,8 +5636,8 @@ function drawSourcingProfileChart(daily) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = "#0a1d32";
-  ctx.font = "700 18px Montserrat, Arial";
+  ctx.fillStyle = "#0F172A";
+  ctx.font = "700 18px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText(`Profil zilnic consum / PV - ${selectedYear()}`, 28, 30);
   if (!daily.length) return;
 
@@ -4944,7 +5654,7 @@ function drawSourcingProfileChart(daily) {
   const step = plotW / daily.length;
   const barW = Math.max(1, Math.min(4, step * 0.78));
 
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
   for (let index = 0; index <= 4; index += 1) {
     const y = paddingTop + (plotH / 4) * index;
@@ -4954,7 +5664,7 @@ function drawSourcingProfileChart(daily) {
     ctx.stroke();
   }
 
-  ctx.strokeStyle = "#cbd6de";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
   ctx.lineTo(paddingLeft, height - paddingBottom);
@@ -4971,21 +5681,21 @@ function drawSourcingProfileChart(daily) {
     ctx.moveTo(xStart, paddingTop);
     ctx.lineTo(xStart, height - paddingBottom);
     ctx.stroke();
-    ctx.fillStyle = "#526b72";
-    ctx.font = "700 10px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "700 10px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText(MONTH_SHORT[monthIndex].toUpperCase(), xMiddle, height - 25);
     dayOffset += monthLength;
   });
-  ctx.fillStyle = "#526b72";
-  ctx.font = "700 10px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "700 10px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText(String(selectedYear()), paddingLeft + plotW / 2, height - 10);
 
   const legend = [
-    { label: "Consum zi", color: "#78bd35", x: paddingLeft - 16 },
-    { label: "Consum noapte", color: "#2b6cb0", x: paddingLeft + 104 },
-    { label: "Productie PV", color: "#f0c23a", x: paddingLeft + 252 },
-    { label: "Total zilnic", color: "#c65050", x: paddingLeft + 392, line: true },
+    { label: "Consum zi", color: "#10B981", x: paddingLeft - 16 },
+    { label: "Consum noapte", color: "#334155", x: paddingLeft + 104 },
+    { label: "Productie PV", color: "#F59E0B", x: paddingLeft + 252 },
+    { label: "Total zilnic", color: "#EF4444", x: paddingLeft + 392, line: true },
   ];
   legend.forEach((item) => {
     if (item.line) {
@@ -4999,8 +5709,8 @@ function drawSourcingProfileChart(daily) {
       ctx.fillStyle = item.color;
       ctx.fillRect(item.x, 43, 12, 12);
     }
-    ctx.fillStyle = "#526b72";
-    ctx.font = "600 11px Montserrat, Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "600 11px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "left";
     ctx.fillText(item.label, item.x + (item.line ? 26 : 18), 53);
   });
@@ -5012,19 +5722,19 @@ function drawSourcingProfileChart(daily) {
     const dayHeight = (row.dayMwh / max) * plotH;
     const pvHeight = (row.pvMwh / max) * plotH;
 
-    ctx.fillStyle = "#2b6cb0";
+    ctx.fillStyle = "#334155";
     ctx.fillRect(x, yBase - nightHeight, barW, nightHeight);
-    ctx.fillStyle = "#78bd35";
+    ctx.fillStyle = "#10B981";
     ctx.fillRect(x, yBase - nightHeight - dayHeight, barW, dayHeight);
     if (row.pvMwh > 0) {
       const pvBarW = Math.max(1, Math.min(2.4, barW * 0.46));
       const pvX = x + (barW - pvBarW) / 2;
-      ctx.fillStyle = "#f0c23a";
+      ctx.fillStyle = "#F59E0B";
       ctx.fillRect(pvX, yBase - pvHeight, pvBarW, pvHeight);
     }
   });
 
-  ctx.strokeStyle = "#c65050";
+  ctx.strokeStyle = "#EF4444";
   ctx.lineWidth = 2.4;
   ctx.beginPath();
   daily.forEach((row, index) => {
@@ -5045,8 +5755,8 @@ function drawConsumptionProfileChart(monthly) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = "#0a1d32";
-  ctx.font = "700 18px Montserrat, Arial";
+  ctx.fillStyle = "#0F172A";
+  ctx.font = "700 18px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText("Profil lunar consum / PV", 28, 30);
   if (!monthly.length) return;
 
@@ -5060,7 +5770,7 @@ function drawConsumptionProfileChart(monthly) {
   const groupW = plotW / monthly.length;
   const barW = Math.max(8, Math.min(28, groupW * 0.28));
 
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
@@ -5068,14 +5778,14 @@ function drawConsumptionProfileChart(monthly) {
   ctx.lineTo(width - paddingRight, height - paddingBottom);
   ctx.stroke();
 
-  ctx.fillStyle = "#526b72";
-  ctx.font = "600 11px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "600 11px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText("Consum", paddingLeft + 4, 50);
-  ctx.fillStyle = "#8aa3b8";
+  ctx.fillStyle = "#94A3B8";
   ctx.fillRect(paddingLeft - 16, 41, 12, 12);
-  ctx.fillStyle = "#526b72";
+  ctx.fillStyle = "#64748B";
   ctx.fillText("PV", paddingLeft + 96, 50);
-  ctx.fillStyle = "#16805f";
+  ctx.fillStyle = "#10B981";
   ctx.fillRect(paddingLeft + 76, 41, 12, 12);
 
   monthly.forEach((row, index) => {
@@ -5083,12 +5793,12 @@ function drawConsumptionProfileChart(monthly) {
     const consumptionHeight = (row.consumptionMwh / max) * plotH;
     const pvHeight = (row.pvMwh / max) * plotH;
     const yBase = height - paddingBottom;
-    ctx.fillStyle = "#8aa3b8";
+    ctx.fillStyle = "#94A3B8";
     ctx.fillRect(x, yBase - consumptionHeight, barW, consumptionHeight);
-    ctx.fillStyle = "#16805f";
+    ctx.fillStyle = "#10B981";
     ctx.fillRect(x + barW + 4, yBase - pvHeight, barW, pvHeight);
-    ctx.fillStyle = "#0a1d32";
-    ctx.font = "600 10px Montserrat, Arial";
+    ctx.fillStyle = "#0F172A";
+    ctx.font = "600 10px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText(MONTH_SHORT[index] || row.monthKey, x + barW, height - 18);
   });
@@ -5103,8 +5813,8 @@ function drawScenarioComparisonChart(scenarios, activeName) {
   ctx.fillRect(0, 0, width, height);
 
   const rows = scenarioCostsFromResult({ scenarios });
-  ctx.fillStyle = "#0a1d32";
-  ctx.font = "700 18px Montserrat, Arial";
+  ctx.fillStyle = "#0F172A";
+  ctx.font = "700 18px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText("Comparator scenarii - pret mediu anual", 28, 28);
   if (!rows.length) return;
 
@@ -5118,7 +5828,7 @@ function drawScenarioComparisonChart(scenarios, activeName) {
   const groupW = plotW / rows.length;
   const barW = Math.max(12, Math.min(32, groupW * 0.26));
 
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(paddingLeft, paddingTop);
@@ -5126,14 +5836,14 @@ function drawScenarioComparisonChart(scenarios, activeName) {
   ctx.lineTo(width - paddingRight, height - paddingBottom);
   ctx.stroke();
 
-  ctx.fillStyle = "#526b72";
-  ctx.font = "600 11px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "600 11px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText("Fara BESS", paddingLeft + 4, 48);
-  ctx.fillStyle = "#8aa3b8";
+  ctx.fillStyle = "#94A3B8";
   ctx.fillRect(paddingLeft - 16, 39, 12, 12);
-  ctx.fillStyle = "#526b72";
+  ctx.fillStyle = "#64748B";
   ctx.fillText("Cu BESS", paddingLeft + 100, 48);
-  ctx.fillStyle = "#16805f";
+  ctx.fillStyle = "#10B981";
   ctx.fillRect(paddingLeft + 80, 39, 12, 12);
 
   rows.forEach((row, index) => {
@@ -5141,12 +5851,12 @@ function drawScenarioComparisonChart(scenarios, activeName) {
     const hWithout = (row.priceWithoutBessLeiMwh / max) * plotH;
     const hWith = (row.priceWithBessLeiMwh / max) * plotH;
     const yBase = height - paddingBottom;
-    ctx.fillStyle = "#8aa3b8";
+    ctx.fillStyle = "#94A3B8";
     ctx.fillRect(x, yBase - hWithout, barW, hWithout);
-    ctx.fillStyle = row.name === activeName ? "#4f9b27" : "#16805f";
+    ctx.fillStyle = row.name === activeName ? "#10B981" : "#10B981";
     ctx.fillRect(x + barW + 5, yBase - hWith, barW, hWith);
-    ctx.fillStyle = "#0a1d32";
-    ctx.font = row.name === activeName ? "700 11px Montserrat, Arial" : "600 11px Montserrat, Arial";
+    ctx.fillStyle = "#0F172A";
+    ctx.font = row.name === activeName ? "700 11px Plus Jakarta Sans, Inter, Arial" : "600 11px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText(row.name, x + barW, height - 24);
     ctx.fillText(numberFormat.format(row.priceWithBessLeiMwh), x + barW, Math.max(54, yBase - hWith - 7));
@@ -5161,8 +5871,8 @@ function drawMonthlyChart(monthly) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = "#0a1d32";
-  ctx.font = "700 18px Montserrat, Arial";
+  ctx.fillStyle = "#0F172A";
+  ctx.font = "700 18px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText("Preturi medii lunare - scenariul selectat", 28, 28);
   if (!monthly.length) return;
   const values = monthly.flatMap((row) => [row.price_without_bess_lei_mwh, row.price_with_bess_lei_mwh]);
@@ -5173,7 +5883,7 @@ function drawMonthlyChart(monthly) {
   const groupW = plotW / monthly.length;
   const barW = Math.max(8, groupW * 0.28);
 
-  ctx.strokeStyle = "#d8e0e7";
+  ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(padding, padding + 24);
@@ -5181,26 +5891,26 @@ function drawMonthlyChart(monthly) {
   ctx.lineTo(width - padding, height - padding);
   ctx.stroke();
 
-  ctx.fillStyle = "#526b72";
-  ctx.font = "600 11px Montserrat, Arial";
+  ctx.fillStyle = "#64748B";
+  ctx.font = "600 11px Plus Jakarta Sans, Inter, Arial";
   ctx.fillText("Fara BESS", padding + 4, 50);
-  ctx.fillStyle = "#8aa3b8";
+  ctx.fillStyle = "#94A3B8";
   ctx.fillRect(padding - 16, 41, 12, 12);
-  ctx.fillStyle = "#526b72";
+  ctx.fillStyle = "#64748B";
   ctx.fillText("Cu BESS", padding + 100, 50);
-  ctx.fillStyle = "#16805f";
+  ctx.fillStyle = "#10B981";
   ctx.fillRect(padding + 80, 41, 12, 12);
 
   monthly.forEach((row, index) => {
     const x = padding + index * groupW + groupW * 0.25;
     const h1 = (row.price_without_bess_lei_mwh / max) * plotH;
     const h2 = (row.price_with_bess_lei_mwh / max) * plotH;
-    ctx.fillStyle = "#8aa3b8";
+    ctx.fillStyle = "#94A3B8";
     ctx.fillRect(x, height - padding - h1, barW, h1);
-    ctx.fillStyle = "#16805f";
+    ctx.fillStyle = "#10B981";
     ctx.fillRect(x + barW + 4, height - padding - h2, barW, h2);
-    ctx.fillStyle = "#0a1d32";
-    ctx.font = "600 10px Montserrat, Arial";
+    ctx.fillStyle = "#0F172A";
+    ctx.font = "600 10px Plus Jakarta Sans, Inter, Arial";
     ctx.textAlign = "center";
     ctx.fillText(row.month || MONTH_SHORT[index] || "", x + barW, height - 18);
     ctx.fillText(numberFormat.format(row.price_with_bess_lei_mwh), x + barW + 4, Math.max(60, height - padding - h2 - 6));
@@ -5220,9 +5930,12 @@ $("exportReportBtn").addEventListener("click", exportCompleteReport);
 $("generatePdfReportBtn")?.addEventListener("click", generateAdvancedPdfReport);
 $("exportAdvancedDataBtn")?.addEventListener("click", exportAdvancedDataCsv);
 $("downloadChartImagesBtn")?.addEventListener("click", downloadAdvancedChartImages);
+$("exportPowerPointBtn")?.addEventListener("click", exportPowerPointReadyReport);
+$("shareReportBtn")?.addEventListener("click", shareReportSummary);
 $("generateReportPreviewBtn")?.addEventListener("click", () => {
   activateProfileRoadmapTab("reports");
   renderConsumptionProfile();
+  setMessages(["Report generated in preview. Use Download PDF for the printable consulting-style report."]);
 });
 $("previewReportBtn")?.addEventListener("click", () => {
   renderConsumptionProfile();
@@ -5284,6 +5997,7 @@ function activateProfileRoadmapTab(tab = "client") {
       else renderConsumptionProfile();
     });
   }
+  if (window.innerWidth <= 760) $("appShell")?.classList.remove("sidebar-open");
 }
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-roadmap-tab]");
@@ -5291,9 +6005,65 @@ document.addEventListener("click", (event) => {
   activateProfileRoadmapTab(button.dataset.roadmapTab);
 });
 document.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-report-type]");
+  if (!button) return;
+  setActiveReportType(button.dataset.reportType);
+});
+document.addEventListener("click", (event) => {
+  const filterButton = event.target.closest("button[data-opportunity-filter]");
+  if (!filterButton) return;
+  applyOpportunityFilter(filterButton.dataset.opportunityFilter || "all");
+});
+document.addEventListener("click", (event) => {
+  const detailButton = event.target.closest("button[data-opportunity-detail]");
+  if (!detailButton) return;
+  const card = detailButton.closest(".opportunity-market-card");
+  if (!card) return;
+  setText("spotlightOpportunityName", card.dataset.opportunityName || "Opportunity");
+  setText(
+    "spotlightOpportunityText",
+    `${card.dataset.recommendedAction || "Recommended action pending."} Estimated impact: ${formatLei(card.dataset.estimatedSavings || 0)}. Priority: ${opportunityStatusMeta(card.dataset.score).priority}.`,
+  );
+  $("topOpportunitySpotlight")?.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+document.addEventListener("click", (event) => {
+  const actionButton = event.target.closest("button[data-sales-action]");
+  if (!actionButton) return;
+  const card = actionButton.closest(".opportunity-market-card");
+  const name = card?.dataset.opportunityName || "Opportunity";
+  const action = actionButton.dataset.salesAction || "action";
+  const label = action === "pitch" ? "Sales Pitch" : action === "email" ? "Email" : action === "summary" ? "Executive Summary" : "Opportunity Export";
+  setMessages([`${label} pregatit pentru ${name}. Continutul foloseste scorurile si recomandarile Opportunity Engine existente.`]);
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#spotlightDetailsBtn")) return;
+  const firstVisible = document.querySelector(".opportunity-market-card:not(.is-filter-hidden)");
+  firstVisible?.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+document.addEventListener("click", (event) => {
   const simulatorButton = event.target.closest("button[data-open-simulator]");
   if (!simulatorButton) return;
   setAppView("simulator");
+  if (window.innerWidth <= 760) $("appShell")?.classList.remove("sidebar-open");
+});
+$("sidebarToggleBtn")?.addEventListener("click", () => {
+  const shell = $("appShell");
+  if (!shell) return;
+  const isTablet = window.innerWidth <= 760;
+  if (isTablet) {
+    shell.classList.toggle("sidebar-open");
+    $("sidebarToggleBtn")?.setAttribute("aria-expanded", String(shell.classList.contains("sidebar-open")));
+    return;
+  }
+  shell.classList.toggle("sidebar-collapsed");
+  $("sidebarToggleBtn")?.setAttribute("aria-expanded", String(!shell.classList.contains("sidebar-collapsed")));
+});
+$("quickSearch")?.addEventListener("input", (event) => {
+  const query = event.target.value.trim().toLowerCase();
+  document.querySelectorAll(".sidebar-roadmap-item, .sidebar-action-button").forEach((item) => {
+    const matches = !query || item.textContent.toLowerCase().includes(query);
+    item.classList.toggle("is-search-hidden", !matches);
+  });
 });
 PROFILE_CONTRACT_FIELD_IDS.forEach((id) => {
   const element = $(id);
@@ -5403,6 +6173,8 @@ $("authToggle").addEventListener("click", () => {
   renderAuthMode();
 });
 $("logoutBtn").addEventListener("click", logout);
+window.addEventListener("load", hideLoadingScreen);
+window.setTimeout(hideLoadingScreen, 1200);
 initCurveControls();
 loadAuthSession();
 renderAuthMode();
@@ -5413,3 +6185,7 @@ if (state.user) {
   syncPriceImportVisibility();
   refreshChecksFromCurrentInputs();
 }
+
+
+
+

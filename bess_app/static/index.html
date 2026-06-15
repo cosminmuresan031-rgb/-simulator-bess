@@ -4,14 +4,30 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>EnergyPilot</title>
+    <meta name="theme-color" content="#0F172A" />
+    <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="%230F172A"/><text x="32" y="39" text-anchor="middle" font-family="Arial" font-size="24" font-weight="800" fill="%23FFFFFF">EP</text><path d="M18 46h28" stroke="%2310B981" stroke-width="4" stroke-linecap="round"/></svg>' />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <section id="loadingScreen" class="loading-screen" aria-label="EnergyPilot loading">
+      <div class="loading-card">
+        <div class="brand-mark loading-mark" aria-hidden="true">EP</div>
+        <strong>ENERGYPILOT</strong>
+        <span>Energy Sales Intelligence Platform</span>
+        <small>Navigate every energy opportunity.</small>
+        <div class="loading-line" aria-hidden="true"></div>
+      </div>
+    </section>
+
     <section id="authScreen" class="auth-screen">
       <form id="authForm" class="auth-card">
-        <div>
-          <h1>EnergyPilot</h1>
-          <p id="authSubtitle">Energy Sales Intelligence Platform</p>
+        <div class="auth-brand">
+          <div class="brand-mark" aria-hidden="true">EP</div>
+          <div>
+            <h1>ENERGYPILOT</h1>
+            <p id="authSubtitle">Energy Sales Intelligence Platform</p>
+            <small>Navigate every energy opportunity.</small>
+          </div>
         </div>
         <label>
           Email
@@ -30,33 +46,67 @@
     <main id="appShell" class="app-shell is-hidden">
       <aside class="app-sidebar" aria-label="EnergyPilot navigation">
         <div class="brand-lockup">
-          <button id="navConsumptionProfile" class="brand-wordmark main-menu-item active" type="button" data-app-view="profile">EnergyPilot</button>
+          <button id="navConsumptionProfile" class="brand-wordmark main-menu-item active" type="button" data-app-view="profile">
+            <span class="brand-mark" aria-hidden="true">EP</span>
+            <span class="brand-name">ENERGYPILOT</span>
+          </button>
           <span>Energy Sales Intelligence Platform</span>
           <small>Navigate every energy opportunity.</small>
         </div>
+
+        <label class="sidebar-client-switcher">
+          <span>Client</span>
+          <select id="sidebarClientSwitcher">
+            <option>Client curent</option>
+          </select>
+        </label>
+
+        <label class="sidebar-search">
+          <span>Quick Search</span>
+          <input id="quickSearch" type="search" placeholder="Search clients, opportunities or reports..." />
+        </label>
+
         <nav class="main-menu sidebar-primary-nav" aria-label="Meniu principal">
-          <button class="sidebar-roadmap-item active" type="button" data-roadmap-tab="client">Dashboard</button>
-          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="sourcing">Contract Opportunity</button>
-          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="procurement">Energy Profile Intelligence</button>
-          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="efficiency">Opportunities</button>
-          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="advanced">Visual Insights</button>
-          <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="reports">Reports</button>
+          <div class="sidebar-nav-group">
+            <span class="nav-section-label">Business Intelligence</span>
+            <button class="sidebar-roadmap-item active" type="button" data-roadmap-tab="client">Dashboard</button>
+            <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="sourcing">Contract Opportunity</button>
+            <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="procurement">Energy Profile Intelligence</button>
+          </div>
+          <div class="sidebar-nav-group">
+            <span class="nav-section-label">Commercial Actions</span>
+            <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="efficiency">Opportunities</button>
+            <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="advanced">Visual Insights</button>
+            <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="reports">Reports</button>
+          </div>
         </nav>
+
+        <div class="sidebar-favorites" aria-label="Favorite actions">
+          <span class="nav-section-label">Favorite Actions</span>
+          <button type="button" class="sidebar-action-button" data-roadmap-tab="reports">Generate Report</button>
+          <button type="button" class="sidebar-action-button" data-open-simulator="true">Launch BESS Simulator</button>
+          <button type="button" class="sidebar-action-button" data-roadmap-tab="efficiency">Open Opportunities</button>
+        </div>
+
+        <div class="sidebar-notifications" aria-label="Notifications">
+          <span>Notifications</span>
+          <strong>No new alerts</strong>
+        </div>
+
         <div class="sidebar-bottom-nav">
           <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="client">Client Data</button>
           <button class="sidebar-roadmap-item" type="button" data-roadmap-tab="client">Settings</button>
+          <button class="sidebar-roadmap-item" type="button">Help</button>
         </div>
       </aside>
 
       <div class="app-main-frame">
       <section class="topbar">
         <div class="topbar-context">
-          <label>
-            Client Selector
-            <select id="topClientSelector">
-              <option>Client curent</option>
-            </select>
-          </label>
+          <button id="sidebarToggleBtn" class="sidebar-toggle" type="button" aria-expanded="true">Menu</button>
+          <nav class="breadcrumbs" aria-label="Breadcrumbs">
+            <span id="breadcrumbTrail">Dashboard</span>
+          </nav>
           <label>
             Date Range
             <select id="topDateRange">
@@ -464,59 +514,107 @@
           </div>
 
           <div class="profile-roadmap-tab procurement-dna-tab" data-roadmap-panel="procurement">
+            <div class="energy-profile-header">
+              <div>
+                <h3>Energy Profile Intelligence</h3>
+                <p>Understand how the client consumes, buys and pays for energy.</p>
+              </div>
+              <span id="energyProfileEmptyState" class="marketplace-empty-state">Additional consumption history required.</span>
+            </div>
+
             <div class="procurement-section">
-              <h3>Executive DNA</h3>
-              <div class="procurement-card-grid procurement-summary-grid">
-                <div class="procurement-card procurement-card-wide">
-                  <span>Energy Profile Intelligence</span>
+              <h3>Executive DNA Summary</h3>
+              <div class="procurement-card-grid energy-dna-summary-grid">
+                <div class="procurement-card procurement-card-wide energy-fingerprint-card">
+                  <span>Energy Profile</span>
                   <strong id="procurementDnaLabel">Profil in asteptare</strong>
-                  <small id="procurementDnaSubtext">Profil operational, strategie achizitie si oportunitate energetica</small>
+                  <small id="procurementDnaSubtext">Digital Energy Fingerprint in asteptare</small>
                 </div>
                 <div class="procurement-card">
-                  <span>Confidence Score</span>
-                  <strong id="procurementConfidence">0%</strong>
+                  <span>Procurement Persona</span>
+                  <strong id="energyProcurementPersona">Additional history required</strong>
+                  <small>Tipar de consum si achizitie</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Commercial Potential</span>
+                  <strong id="energyCommercialPotential">0%</strong>
+                  <small id="energyCommercialPotentialLabel">Oportunitati in asteptare</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Forecastability</span>
+                  <strong id="riskDnaForecastability">0%</strong>
                   <small id="procurementConfidenceLabel">Nivel de incredere in clasificare</small>
                 </div>
                 <div class="procurement-card">
-                  <span>Risk Gauge</span>
+                  <span>Risk Level</span>
                   <strong id="procurementRiskGauge">0 / 100</strong>
                   <small id="procurementRiskLabel">Risc in asteptare</small>
                 </div>
-                <div class="procurement-card">
-                  <span>Recomandare Contract</span>
-                  <strong id="procurementContractRecommendation">Introdu curbe</strong>
-                  <small id="procurementContractRecommendationSubtext">Strategie contractuala recomandata</small>
+              </div>
+            </div>
+
+            <div class="procurement-section energy-persona-section">
+              <h3>Procurement Persona</h3>
+              <div class="energy-persona-panel">
+                <div>
+                  <span>Current Persona</span>
+                  <strong id="energyPersonaTitle">Additional consumption history required.</strong>
+                  <p id="energyPersonaText">Clientul va fi clasificat automat dupa introducerea curbelor orare.</p>
+                </div>
+                <div class="persona-chip-row">
+                  <span>Stable Baseload Consumer</span>
+                  <span>Daytime Industrial Consumer</span>
+                  <span>Night Intensive Consumer</span>
+                  <span>Flexible Consumer</span>
+                  <span>Volatile Consumer</span>
+                  <span>Solar Friendly Consumer</span>
+                  <span>Storage Ready Consumer</span>
+                  <span>Hybrid Consumer</span>
                 </div>
               </div>
             </div>
 
             <div class="procurement-section">
               <h3>Risk DNA</h3>
-              <div class="procurement-card-grid">
-                <div class="procurement-card">
-                  <span>Forecastability</span>
-                  <strong id="riskDnaForecastability">0%</strong>
-                  <small>Predictibilitate consum</small>
-                </div>
-                <div class="procurement-card">
-                  <span>Seasonality</span>
-                  <strong id="riskDnaSeasonality">0%</strong>
-                  <small>Variatie lunara</small>
-                </div>
-                <div class="procurement-card">
-                  <span>Volatility</span>
-                  <strong id="riskDnaVolatility">0%</strong>
-                  <small>Variatie orara</small>
-                </div>
-                <div class="procurement-card">
-                  <span>Peak Risk</span>
-                  <strong id="riskDnaPeakRisk">N/A</strong>
-                  <small>Din Peak/Base Ratio</small>
-                </div>
-                <div class="procurement-card">
-                  <span>Risk Gauge Total</span>
-                  <strong id="riskDnaGaugeTotal">0%</strong>
+              <div class="risk-dna-layout">
+                <div class="risk-gauge-card procurement-card">
+                  <span>Risk Gauge</span>
+                  <div id="riskGaugeCircle" class="risk-gauge-circle" style="--risk-score: 0;">
+                    <strong id="riskGaugeValue">N/A</strong>
+                  </div>
                   <small id="riskDnaGaugeLabel">Risc in asteptare</small>
+                </div>
+                <div class="procurement-card-grid risk-dna-grid">
+                  <div class="procurement-card">
+                    <span>Risk Score</span>
+                    <strong id="riskDnaGaugeTotal">0%</strong>
+                    <small>Scor agregat Risk DNA</small>
+                  </div>
+                  <div class="procurement-card">
+                    <span>Risk Level</span>
+                    <strong id="riskDnaLevelText">Pending</strong>
+                    <small>Low / Medium / High Risk</small>
+                  </div>
+                  <div class="procurement-card">
+                    <span>Price Risk</span>
+                    <strong id="riskDnaPriceRisk">N/A</strong>
+                    <small>Expunere la ore scumpe PZU</small>
+                  </div>
+                  <div class="procurement-card">
+                    <span>Volume Risk</span>
+                    <strong id="riskDnaVolumeRisk">N/A</strong>
+                    <small>Varfuri si variabilitate consum</small>
+                  </div>
+                  <div class="procurement-card">
+                    <span>Forecast Risk</span>
+                    <strong id="riskDnaForecastRisk">N/A</strong>
+                    <small>Inversul predictibilitatii</small>
+                  </div>
+                  <div class="procurement-card">
+                    <span>Seasonality Risk</span>
+                    <strong id="riskDnaSeasonality">0%</strong>
+                    <small>Variatie lunara</small>
+                  </div>
                 </div>
               </div>
               <p id="riskDnaInterpretation" class="procurement-interpretation-text">Curba orara de consum este necesara pentru generarea Energy Profile Intelligence.</p>
@@ -524,28 +622,59 @@
 
             <div class="procurement-section load-dna-section">
               <h3>Load DNA</h3>
-              <canvas id="procurementLoadDurationChart" class="chart-canvas procurement-chart procurement-chart-wide" width="1120" height="360"></canvas>
-              <p id="loadDnaInterpretation" class="procurement-interpretation-text">Curba orara de consum este necesara pentru generarea Load DNA.</p>
               <div class="procurement-card-grid">
                 <div class="procurement-card">
-                  <span>Baseload MW</span>
-                  <strong id="procurementBaseload">N/A</strong>
-                  <small>Consum minim permanent</small>
-                </div>
-                <div class="procurement-card">
-                  <span>Midload MW</span>
-                  <strong id="procurementMidload">N/A</strong>
-                  <small>Consum median</small>
-                </div>
-                <div class="procurement-card">
-                  <span>Peakload MW</span>
-                  <strong id="procurementPeakload">N/A</strong>
-                  <small>Varf maxim consum</small>
+                  <span>Load Factor</span>
+                  <strong id="loadDnaLoadFactor">0%</strong>
+                  <small>Consum mediu raportat la varf</small>
                 </div>
                 <div class="procurement-card">
                   <span>Peak/Base Ratio</span>
                   <strong id="procurementPeakBaseRatio">N/A</strong>
                   <small id="procurementPeakBaseLabel">Stabilitatea profilului</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Load Stability Index</span>
+                  <strong id="loadDnaStabilityIndex">0%</strong>
+                  <small>Stabilitate operationala</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Consumption Variability</span>
+                  <strong id="loadDnaConsumptionVariability">0%</strong>
+                  <small>Volatilitate orara</small>
+                </div>
+              </div>
+              <p id="loadDnaInterpretation" class="procurement-interpretation-text">Curba orara de consum este necesara pentru generarea Load DNA.</p>
+            </div>
+
+            <div class="procurement-section load-duration-section">
+              <h3>Load Duration Analysis</h3>
+              <canvas id="procurementLoadDurationChart" class="chart-canvas procurement-chart procurement-chart-wide" width="1120" height="360"></canvas>
+              <div class="procurement-card-grid">
+                <div class="procurement-card">
+                  <span>Base Load</span>
+                  <strong id="procurementBaseload">N/A</strong>
+                  <small>Consum minim permanent</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Peak Load</span>
+                  <strong id="procurementPeakload">N/A</strong>
+                  <small>Varf maxim consum</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Peak Hours</span>
+                  <strong id="loadDnaPeakHours">N/A</strong>
+                  <small>Ore peste pragul de varf</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Peak Share</span>
+                  <strong id="loadDnaPeakShare">N/A</strong>
+                  <small>Pondere consum in peak hours</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Mid Load</span>
+                  <strong id="procurementMidload">N/A</strong>
+                  <small>Consum median</small>
                 </div>
               </div>
             </div>
@@ -554,36 +683,89 @@
               <h3>Cost DNA</h3>
               <div class="procurement-card-grid">
                 <div class="procurement-card">
-                  <span>Total Cost PZU</span>
-                  <strong id="procurementTotalCost">Indisponibil</strong>
-                  <small>Consum orar x pret PZU</small>
+                  <span>Cost Exposure Score</span>
+                  <strong id="costDnaExposureScore">Indisponibil</strong>
+                  <small>Concentrare cost si expunere PZU</small>
                 </div>
                 <div class="procurement-card">
-                  <span>Cost Concentration Index</span>
-                  <strong id="procurementCostConcentration">Indisponibil</strong>
-                  <small id="procurementCostConcentrationLabel">Concentrare cost</small>
-                </div>
-                <div class="procurement-card">
-                  <span>Top 100 Share</span>
+                  <span>Peak Cost Exposure</span>
                   <strong id="procurementTop100Share">Indisponibil</strong>
                   <small>Pondere top 100 ore cost</small>
                 </div>
                 <div class="procurement-card">
-                  <span>Expensive Hours Cost Share</span>
-                  <strong id="procurementExpensiveCostShare">Indisponibil</strong>
-                  <small>Top 20% ore dupa PZU</small>
+                  <span>Price Sensitivity</span>
+                  <strong id="costDnaPriceSensitivity">Indisponibil</strong>
+                  <small>Spread PZU si expunere profil</small>
                 </div>
                 <div class="procurement-card">
-                  <span>Cheap Hours Cost Share</span>
-                  <strong id="procurementCheapCostShare">Indisponibil</strong>
-                  <small>Bottom 20% ore dupa PZU</small>
+                  <span>Procurement Risk</span>
+                  <strong id="costDnaProcurementRisk">Indisponibil</strong>
+                  <small>Risc comercial achizitie</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Total Cost PZU</span>
+                  <strong id="procurementTotalCost">Indisponibil</strong>
+                  <small>Consum orar x pret PZU</small>
                 </div>
               </div>
               <p id="costDnaInterpretation" class="procurement-interpretation-text">Cost DNA se activeaza dupa ce exista consum orar si preturi PZU.</p>
             </div>
 
+            <div class="procurement-section">
+              <h3>Opportunity DNA</h3>
+              <div class="procurement-card-grid">
+                <div class="procurement-card">
+                  <span>Storage Readiness</span>
+                  <strong id="opportunityDnaStorage">0%</strong>
+                  <small id="opportunityDnaStorageLabel">Fit BESS din profil si PZU</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Solar Readiness</span>
+                  <strong id="opportunityDnaSolar">0%</strong>
+                  <small id="opportunityDnaSolarLabel">Autoconsum in interval solar</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Contract Readiness</span>
+                  <strong id="opportunityDnaContract">In asteptare</strong>
+                  <small>Strategie contractuala recomandata</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Grid Optimization Readiness</span>
+                  <strong id="opportunityDnaGrid">0%</strong>
+                  <small id="opportunityDnaGridLabel">ATR, varfuri si retea</small>
+                </div>
+                <div class="procurement-card">
+                  <span>EV Charging Readiness</span>
+                  <strong id="opportunityDnaEv">Pending</strong>
+                  <small id="opportunityDnaEvLabel">Employee / Visitor / Fleet / Truck</small>
+                </div>
+              </div>
+            </div>
+
             <div class="procurement-section procurement-chart-section">
-              <h3>Diagrame Cost DNA</h3>
+              <h3>Cost Exposure Profile</h3>
+              <div class="procurement-card-grid cost-exposure-grid">
+                <div class="procurement-card">
+                  <span>Most Expensive Hours</span>
+                  <strong id="costExposureTopHours">N/A</strong>
+                  <small>Ore prioritare pentru analiza</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Cost Concentration</span>
+                  <strong id="procurementCostConcentration">Indisponibil</strong>
+                  <small id="procurementCostConcentrationLabel">Concentrare cost</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Price Exposure</span>
+                  <strong id="procurementExpensiveCostShare">Indisponibil</strong>
+                  <small>Top 20% ore dupa PZU</small>
+                </div>
+                <div class="procurement-card">
+                  <span>Low Price Capture</span>
+                  <strong id="procurementCheapCostShare">Indisponibil</strong>
+                  <small>Bottom 20% ore dupa PZU</small>
+                </div>
+              </div>
               <div class="procurement-chart-grid">
                 <canvas id="procurementTopCostChart" class="chart-canvas procurement-chart" width="560" height="360"></canvas>
                 <canvas id="procurementCostDistributionChart" class="chart-canvas procurement-chart" width="560" height="320"></canvas>
@@ -591,72 +773,202 @@
             </div>
 
             <div class="procurement-section">
-              <h3>Interpretare automata</h3>
+              <h3>Energy Profile Summary</h3>
               <div class="procurement-card procurement-card-wide procurement-report-card">
-                <span>Raport profesional</span>
+                <span>Digital Energy Fingerprint</span>
                 <strong id="procurementFinalOutput">Profil mixt | High Risk Profile | No Immediate Opportunity</strong>
                 <small id="procurementReportText">Curba orara de consum este necesara pentru generarea Energy Profile Intelligence.</small>
               </div>
             </div>
+
             <div class="procurement-section">
-              <h3>Opportunity DNA</h3>
-              <div class="procurement-card-grid">
-                <div class="procurement-card">
-                  <span>Contract Opportunity</span>
-                  <strong id="opportunityDnaContract">In asteptare</strong>
-                  <small>Recomandare comerciala contract</small>
+              <h3>Insights Panel</h3>
+              <div class="insights-panel-grid">
+                <div class="insight-list-card">
+                  <h4>Top Strengths</h4>
+                  <div id="energyTopStrengths" class="sales-list"></div>
                 </div>
-                <div class="procurement-card">
-                  <span>Storage Opportunity</span>
-                  <strong id="opportunityDnaStorage">0%</strong>
-                  <small>Fit BESS din profil si PZU</small>
+                <div class="insight-list-card">
+                  <h4>Top Risks</h4>
+                  <div id="energyTopRisks" class="sales-list"></div>
                 </div>
-                <div class="procurement-card">
-                  <span>Solar Opportunity</span>
-                  <strong id="opportunityDnaSolar">0%</strong>
-                  <small>Autoconsum in interval solar</small>
-                </div>
-                <div class="procurement-card">
-                  <span>Grid Optimization</span>
-                  <strong id="opportunityDnaGrid">0%</strong>
-                  <small>ATR, varfuri si retea</small>
+                <div class="insight-list-card">
+                  <h4>Top Opportunities</h4>
+                  <div id="energyTopOpportunities" class="sales-list"></div>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="profile-roadmap-tab" data-roadmap-panel="efficiency">
-            <div class="roadmap-kpi-grid opportunity-grid-lock">
-              <div class="roadmap-kpi commercial-score-card">
-                <span>Contract Optimization</span>
-                <strong id="commercialOpportunityScore">0%</strong>
-                <small id="commercialOpportunityLabel">Limited Opportunity</small>
+            <div class="marketplace-header">
+              <div>
+                <h3>Opportunities</h3>
+                <p>Convert energy profile insights into commercial actions.</p>
               </div>
-              <div class="roadmap-kpi">
-                <span>Solar Opportunity</span>
-                <strong id="profileKpiSolarFit">0%</strong>
-                <small>Consum 08:00 - 18:00</small>
+              <span id="marketplaceEmptyState" class="marketplace-empty-state">No opportunities identified yet. Please upload consumption data and complete the analysis.</span>
+            </div>
+            <div class="opportunity-summary-bar">
+              <div><span>Total Opportunities</span><strong id="marketplaceTotalOpportunities">0</strong></div>
+              <div><span>Commercial Opportunity Score</span><strong id="commercialOpportunityScore">0%</strong></div>
+              <div><span>Estimated Annual Savings</span><strong id="commercialEstimatedSavings">0 lei</strong></div>
+              <div><span>Top Opportunity</span><strong id="commercialTopOpportunity">Introdu curbe</strong></div>
+            </div>
+            <div class="opportunity-filter-tabs" id="opportunityFilters" aria-label="Opportunity filters">
+              <button class="active" type="button" data-opportunity-filter="all">All Opportunities</button>
+              <button type="button" data-opportunity-filter="high">High Potential</button>
+              <button type="button" data-opportunity-filter="medium">Medium Potential</button>
+              <button type="button" data-opportunity-filter="low">Low Potential</button>
+              <button type="button" data-opportunity-filter="implemented">Implemented</button>
+              <button type="button" data-opportunity-filter="pending">Pending</button>
+            </div>
+            <section class="top-opportunity-spotlight" id="topOpportunitySpotlight">
+              <div>
+                <span>Top Opportunity Spotlight</span>
+                <h3 id="spotlightOpportunityName">No opportunities identified yet.</h3>
+                <p id="spotlightOpportunityText">Please upload consumption data and complete the analysis.</p>
               </div>
-              <div class="roadmap-kpi">
-                <span>PV Maintenance Opportunity</span>
-                <strong id="opportunityPvMaintenanceScore">0%</strong>
-                <small>Audit performanta PV / prosumator</small>
-              </div>
-              <div class="roadmap-kpi">
-                <span>Storage Opportunity</span>
-                <strong id="profileKpiStorageFit">0%</strong>
-                <small id="opportunityStorageSavings">Potential savings: 0 lei</small>
-              </div>
-              <div class="roadmap-kpi">
-                <span>Grid Optimization</span>
-                <strong id="profileKpiAtrOptimization">0%</strong>
-                <small id="profileKpiAtrLabel">ATR profilare separat</small>
-              </div>
-              <div class="roadmap-kpi">
-                <span>EV Charging Opportunity</span>
-                <strong id="opportunityEvScore">0%</strong>
-                <small>Employee / Visitor / Fleet / Truck</small>
-              </div>
+              <button class="primary" type="button" id="spotlightDetailsBtn">View Details</button>
+            </section>
+            <div class="opportunity-marketplace-grid" id="opportunityMarketplaceGrid">
+              <article class="opportunity-market-card" data-opportunity-card="contract">
+                <div class="opportunity-card-head">
+                  <span>Opportunity Name</span>
+                  <strong>Contract Optimization</strong>
+                </div>
+                <div class="opportunity-card-score"><span>Score</span><strong id="marketplaceContractScore">0%</strong></div>
+                <div class="opportunity-card-meta">
+                  <span id="marketplaceContractStatus" class="opportunity-status pending">Pending Assessment</span>
+                  <span id="marketplaceContractPriority" class="opportunity-priority">Priority: Pending</span>
+                </div>
+                <dl>
+                  <div><dt>Potential Savings</dt><dd id="marketplaceContractSavings">0 lei</dd></div>
+                  <div><dt>Contract Fit</dt><dd id="marketplaceContractFit">Pending Assessment</dd></div>
+                  <div><dt>Recommended Strategy</dt><dd id="marketplaceContractStrategy">Introdu curbe</dd></div>
+                </dl>
+                <div class="opportunity-card-actions">
+                  <button type="button" data-opportunity-detail="contract">View Details</button>
+                  <button type="button" data-sales-action="pitch">Generate Sales Pitch</button>
+                  <button type="button" data-sales-action="email">Generate Email</button>
+                  <button type="button" data-sales-action="summary">Generate Executive Summary</button>
+                  <button type="button" data-sales-action="export">Export Opportunity</button>
+                </div>
+              </article>
+              <article class="opportunity-market-card" data-opportunity-card="solar">
+                <div class="opportunity-card-head">
+                  <span>Opportunity Name</span>
+                  <strong id="marketplaceSolarName">Solar Opportunity</strong>
+                </div>
+                <div class="opportunity-card-score"><span>Solar Fit</span><strong id="profileKpiSolarFit">0%</strong></div>
+                <div class="opportunity-card-meta">
+                  <span id="marketplaceSolarStatus" class="opportunity-status pending">Pending Assessment</span>
+                  <span id="marketplaceSolarPriority" class="opportunity-priority">Priority: Pending</span>
+                </div>
+                <dl>
+                  <div><dt>Estimated Self Consumption</dt><dd id="marketplaceSolarSelfConsumption">0 MWh</dd></div>
+                  <div><dt>Potential Savings</dt><dd id="marketplaceSolarSavings">0 lei</dd></div>
+                  <div><dt>Status</dt><dd id="marketplaceSolarCardStatus">Pending Assessment</dd></div>
+                </dl>
+                <div class="opportunity-card-actions">
+                  <button type="button" data-opportunity-detail="solar">View Details</button>
+                  <button type="button" data-sales-action="pitch">Generate Sales Pitch</button>
+                  <button type="button" data-sales-action="email">Generate Email</button>
+                  <button type="button" data-sales-action="summary">Generate Executive Summary</button>
+                  <button type="button" data-sales-action="export">Export Opportunity</button>
+                </div>
+              </article>
+              <article class="opportunity-market-card" data-opportunity-card="pv-maintenance">
+                <div class="opportunity-card-head">
+                  <span>Opportunity Name</span>
+                  <strong>PV Maintenance Opportunity</strong>
+                </div>
+                <div class="opportunity-card-score"><span>Score</span><strong id="opportunityPvMaintenanceScore">0%</strong></div>
+                <div class="opportunity-card-meta">
+                  <span id="marketplacePvStatus" class="opportunity-status pending">Pending Assessment</span>
+                  <span id="marketplacePvPriority" class="opportunity-priority">Priority: Pending</span>
+                </div>
+                <dl>
+                  <div><dt>Installed Capacity</dt><dd id="marketplacePvCapacity">0 kWp</dd></div>
+                  <div><dt>Status</dt><dd id="marketplacePvCardStatus">Pending Assessment</dd></div>
+                  <div><dt>Recommended Service</dt><dd id="marketplacePvService">Audit performanta PV</dd></div>
+                </dl>
+                <div class="opportunity-card-actions">
+                  <button type="button" data-opportunity-detail="pv-maintenance">View Details</button>
+                  <button type="button" data-sales-action="pitch">Generate Sales Pitch</button>
+                  <button type="button" data-sales-action="email">Generate Email</button>
+                  <button type="button" data-sales-action="summary">Generate Executive Summary</button>
+                  <button type="button" data-sales-action="export">Export Opportunity</button>
+                </div>
+              </article>
+              <article class="opportunity-market-card" data-opportunity-card="storage">
+                <div class="opportunity-card-head">
+                  <span>Opportunity Name</span>
+                  <strong>Storage Opportunity</strong>
+                </div>
+                <div class="opportunity-card-score"><span>Storage Opportunity Score</span><strong id="profileKpiStorageFit">0%</strong></div>
+                <div class="opportunity-card-meta">
+                  <span id="marketplaceStorageStatus" class="opportunity-status pending">Pending Assessment</span>
+                  <span id="marketplaceStoragePriority" class="opportunity-priority">Priority: Pending</span>
+                </div>
+                <dl>
+                  <div><dt>Potential Savings</dt><dd id="marketplaceStorageSavings">0 lei</dd></div>
+                  <div><dt>Estimated ROI</dt><dd id="marketplaceStorageRoi">CAPEX necesar</dd></div>
+                  <div><dt>Priority</dt><dd id="marketplaceStoragePriorityDetail">Pending</dd></div>
+                </dl>
+                <div class="opportunity-card-actions">
+                  <button type="button" data-opportunity-detail="storage">View Details</button>
+                  <button type="button" data-open-simulator="true">Launch BESS Opportunity Simulator</button>
+                  <button type="button" data-sales-action="pitch">Generate Sales Pitch</button>
+                  <button type="button" data-sales-action="email">Generate Email</button>
+                  <button type="button" data-sales-action="summary">Generate Executive Summary</button>
+                </div>
+              </article>
+              <article class="opportunity-market-card" data-opportunity-card="grid">
+                <div class="opportunity-card-head">
+                  <span>Opportunity Name</span>
+                  <strong>Grid Optimization</strong>
+                </div>
+                <div class="opportunity-card-score"><span>ATR Optimization</span><strong id="profileKpiAtrOptimization">0%</strong></div>
+                <div class="opportunity-card-meta">
+                  <span id="marketplaceGridStatus" class="opportunity-status pending">Pending Assessment</span>
+                  <span id="marketplaceGridPriority" class="opportunity-priority">Priority: Pending</span>
+                </div>
+                <dl>
+                  <div><dt>JT -> MT Opportunity</dt><dd id="profileKpiJtMt">0%</dd></div>
+                  <div><dt>Peak Shaving Potential</dt><dd id="marketplaceGridPeakShaving">Pending Assessment</dd></div>
+                  <div><dt>Estimated Impact</dt><dd id="marketplaceGridImpact">0 lei</dd></div>
+                </dl>
+                <div class="opportunity-card-actions">
+                  <button type="button" data-opportunity-detail="grid">View Details</button>
+                  <button type="button" data-sales-action="pitch">Generate Sales Pitch</button>
+                  <button type="button" data-sales-action="email">Generate Email</button>
+                  <button type="button" data-sales-action="summary">Generate Executive Summary</button>
+                  <button type="button" data-sales-action="export">Export Opportunity</button>
+                </div>
+              </article>
+              <article class="opportunity-market-card" data-opportunity-card="ev">
+                <div class="opportunity-card-head">
+                  <span>Opportunity Name</span>
+                  <strong>EV Charging Opportunity</strong>
+                </div>
+                <div class="opportunity-card-score"><span>EV Charging Score</span><strong id="opportunityEvScore">0%</strong></div>
+                <div class="opportunity-card-meta">
+                  <span id="marketplaceEvStatus" class="opportunity-status pending">Pending Assessment</span>
+                  <span id="marketplaceEvPriority" class="opportunity-priority">Priority: Pending</span>
+                </div>
+                <dl>
+                  <div><dt>Use Case</dt><dd id="marketplaceEvUseCase">Pending Assessment</dd></div>
+                  <div><dt>Recommended Infrastructure</dt><dd id="marketplaceEvInfrastructure">Necesita date despre flota si parcari</dd></div>
+                  <div><dt>Estimated Impact</dt><dd id="marketplaceEvImpact">0 lei</dd></div>
+                </dl>
+                <div class="opportunity-card-actions">
+                  <button type="button" data-opportunity-detail="ev">View Details</button>
+                  <button type="button" data-sales-action="pitch">Generate Sales Pitch</button>
+                  <button type="button" data-sales-action="email">Generate Email</button>
+                  <button type="button" data-sales-action="summary">Generate Executive Summary</button>
+                  <button type="button" data-sales-action="export">Export Opportunity</button>
+                </div>
+              </article>
             </div>
             <div class="storage-opportunity-panel">
               <div>
@@ -687,11 +999,12 @@
                 <table class="commercial-ranking-table">
                   <thead>
                     <tr>
-                      <th>Prioritate</th>
-                      <th>Oportunitate</th>
-                      <th>Scor</th>
-                      <th>Saving estimat</th>
-                      <th>Actiune comerciala</th>
+                      <th>Opportunity</th>
+                      <th>Score</th>
+                      <th>Priority</th>
+                      <th>Estimated Savings</th>
+                      <th>Status</th>
+                      <th>Recommended Action</th>
                     </tr>
                   </thead>
                   <tbody id="commercialRankingRows"></tbody>
@@ -768,16 +1081,60 @@
             <div class="advanced-report-panel">
               <div class="advanced-report-head">
                 <div>
-                  <h3 id="advancedReportHeading">Visual Insights</h3>
-                  <p id="advancedReportStatus">Curba orara de consum este necesara pentru generarea diagramelor.</p>
+                  <h3 id="advancedReportHeading">Reports</h3>
+                  <p id="advancedReportStatus">Generate professional reports for client meetings and internal sales support.</p>
                 </div>
                 <div class="advanced-report-actions">
-                  <button id="generateReportPreviewBtn" class="secondary" type="button">Generate Report</button>
-                  <button id="previewReportBtn" class="secondary" type="button">Preview</button>
+                  <button id="generateReportPreviewBtn" class="secondary" type="button">Generate PDF</button>
+                  <button id="previewReportBtn" class="secondary" type="button">Preview Report</button>
                   <button id="generatePdfReportBtn" class="primary" type="button">Download PDF</button>
                   <button id="exportAdvancedDataBtn" class="secondary" type="button">Download Excel</button>
-                  <button id="downloadChartImagesBtn" class="secondary" type="button">Download Charts</button>
+                  <button id="shareReportBtn" class="secondary" type="button">Share Report</button>
                 </div>
+              </div>
+
+              <div class="report-center-header">
+                <div class="report-brand-lockup">
+                  <span class="brand-mark" aria-hidden="true">EP</span>
+                  <div>
+                    <span>REPORT BRANDING</span>
+                    <strong>ENERGYPILOT</strong>
+                    <p>Energy Sales Intelligence Platform. Navigate every energy opportunity.</p>
+                  </div>
+                </div>
+                <span id="reportEmptyState" class="marketplace-empty-state">Insufficient data available for report generation. Please complete the analysis first.</span>
+              </div>
+
+              <div class="report-type-grid" id="reportTypeGrid" aria-label="Report types">
+                <button class="active" type="button" data-report-type="executive">
+                  <span>EnergyPilot Executive Report</span>
+                  <small>Full executive PDF for client meetings</small>
+                </button>
+                <button type="button" data-report-type="procurement">
+                  <span>Procurement Intelligence Report</span>
+                  <small>Energy Profile, persona, risk and sourcing</small>
+                </button>
+                <button type="button" data-report-type="commercial">
+                  <span>Commercial Opportunity Report</span>
+                  <small>Ranking, savings and recommended actions</small>
+                </button>
+                <button type="button" data-report-type="bess">
+                  <span>BESS Opportunity Report</span>
+                  <small>Storage fit, peak shaving and ROI narrative</small>
+                </button>
+                <button type="button" data-report-type="solar">
+                  <span>Solar Opportunity Report</span>
+                  <small>Solar fit, self consumption and PV expansion</small>
+                </button>
+                <button type="button" data-report-type="management">
+                  <span>Management Summary</span>
+                  <small>One-page commercial management summary</small>
+                </button>
+              </div>
+
+              <div class="report-quick-export-grid">
+                <button id="downloadChartImagesBtn" class="secondary" type="button">PNG Charts</button>
+                <button id="exportPowerPointBtn" class="secondary" type="button">PowerPoint Ready Export</button>
               </div>
 
               <div class="advanced-kpi-grid">
@@ -789,10 +1146,29 @@
                 <div class="advanced-kpi"><span>Storage Fit</span><strong id="reportStorageFit">0%</strong><small>ore scumpe + seara</small></div>
               </div>
 
+              <section class="advanced-report-section report-narrative-section">
+                <h3>Automated Narrative</h3>
+                <div class="report-narrative-grid">
+                  <div class="insight-list-card">
+                    <h4>Executive Summary</h4>
+                    <p id="reportExecutiveSummary">Insufficient data available for report generation.</p>
+                  </div>
+                  <div class="insight-list-card">
+                    <h4>Generated Insights</h4>
+                    <div id="reportGeneratedInsights" class="sales-list"></div>
+                  </div>
+                  <div class="insight-list-card">
+                    <h4>Recommended Actions</h4>
+                    <div id="reportRecommendedActions" class="sales-list"></div>
+                  </div>
+                </div>
+              </section>
+
               <section class="advanced-report-section" id="advancedConsumptionSection">
-                <h3>1. Profil consum</h3>
+                <h3>Visual Insights - Consumption Profile</h3>
                 <div class="advanced-chart-grid">
                   <canvas id="reportConsumptionHeatmap" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="360"></canvas>
+                  <canvas id="reportLoadDurationChart" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="340"></canvas>
                   <canvas id="reportDailyCurveChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
                   <canvas id="reportIntervalChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
                 </div>
@@ -800,7 +1176,7 @@
               </section>
 
               <section class="advanced-report-section" id="advancedMarketSection">
-                <h3>2. Profil piata / PZU</h3>
+                <h3>Visual Insights - PZU Market Profile</h3>
                 <div class="advanced-chart-grid">
                   <canvas id="reportPzuHeatmap" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="360"></canvas>
                   <canvas id="reportConsumptionPriceScatter" class="chart-canvas advanced-chart" width="560" height="340"></canvas>
@@ -810,7 +1186,7 @@
               </section>
 
               <section class="advanced-report-section" id="advancedCostSection">
-                <h3>3. Profil cost</h3>
+                <h3>Financial Impact - Cost Exposure</h3>
                 <div class="advanced-chart-grid">
                   <canvas id="reportCostDistributionChart" class="chart-canvas advanced-chart" width="560" height="330"></canvas>
                   <canvas id="reportTopCostHoursChart" class="chart-canvas advanced-chart" width="560" height="360"></canvas>
@@ -820,13 +1196,34 @@
               </section>
 
               <section class="advanced-report-section" id="advancedOpportunitySection">
-                <h3>4. Oportunitati client</h3>
+                <h3>Commercial Opportunities</h3>
                 <div class="advanced-chart-grid">
                   <canvas id="reportSolarOpportunityChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
                   <canvas id="reportStorageOpportunityChart" class="chart-canvas advanced-chart" width="560" height="320"></canvas>
                   <canvas id="reportPeakShavingChart" class="chart-canvas advanced-chart advanced-chart-wide" width="1120" height="320"></canvas>
                 </div>
                 <p id="reportOpportunityText" class="advanced-report-text">Oportunitatile se calculeaza automat din profilul de consum, preturi PZU si Energy Profile Intelligence.</p>
+              </section>
+
+              <section class="advanced-report-section">
+                <h3>Recommended Action Plan</h3>
+                <div class="report-action-plan-grid">
+                  <div class="procurement-card">
+                    <span>Priority 1</span>
+                    <strong id="reportPriorityOne">Complete analysis</strong>
+                    <small id="reportPriorityOneMeta">Description | Expected Impact | Timeline</small>
+                  </div>
+                  <div class="procurement-card">
+                    <span>Priority 2</span>
+                    <strong id="reportPriorityTwo">Validate opportunity</strong>
+                    <small id="reportPriorityTwoMeta">Description | Expected Impact | Timeline</small>
+                  </div>
+                  <div class="procurement-card">
+                    <span>Priority 3</span>
+                    <strong id="reportPriorityThree">Prepare discussion</strong>
+                    <small id="reportPriorityThreeMeta">Description | Expected Impact | Timeline</small>
+                  </div>
+                </div>
               </section>
             </div>
           </div>

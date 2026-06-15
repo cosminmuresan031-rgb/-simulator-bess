@@ -13,15 +13,15 @@ from openpyxl.utils import get_column_letter
 
 
 MONTHS = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-NAVY = "06152C"
-GREEN = "4F9B27"
-GREEN_DARK = "2D711B"
-GREEN_LIGHT = "E8F4EB"
-BLUE_LIGHT = "D7E8F5"
-RED_LIGHT = "F7DEDE"
-TEXT = "0A1D32"
+NAVY = "0F172A"
+GREEN = "10B981"
+GREEN_DARK = "059669"
+GREEN_LIGHT = "F8FAFC"
+BLUE_LIGHT = "F8FAFC"
+RED_LIGHT = "FEE2E2"
+TEXT = "0F172A"
 WHITE = "FFFFFF"
-LINE = "D9E3EB"
+LINE = "E2E8F0"
 
 
 def as_float(value: Any) -> float:
@@ -95,7 +95,7 @@ def set_widths(ws, widths: Dict[str, float]) -> None:
 def add_kpi(ws, row: int, col: int, label: str, value: Any) -> None:
     label_cell = ws.cell(row=row, column=col, value=safe_text(label))
     value_cell = ws.cell(row=row + 1, column=col, value=value)
-    label_cell.font = Font(color="526B72", size=10)
+    label_cell.font = Font(color="64748B", size=10)
     value_cell.font = Font(bold=True, color=TEXT, size=14)
     label_cell.fill = PatternFill("solid", fgColor=GREEN_LIGHT)
     value_cell.fill = PatternFill("solid", fgColor=GREEN_LIGHT)
@@ -139,7 +139,7 @@ def create_dashboard_sheet(wb: Workbook, dashboard: Dict[str, Any], project_name
     )
 
     ws.merge_cells("A1:H1")
-    ws["A1"] = "SIMULATOR BESS - DASHBOARD"
+    ws["A1"] = "ENERGYPILOT - DASHBOARD"
     style_title(ws["A1"])
     ws.row_dimensions[1].height = 28
 
@@ -654,7 +654,7 @@ def generate_complete_report_xlsx(payload: Dict[str, Any]) -> bytes:
     summary = payload.get("financialSummary") or {}
     scenario = payload.get("scenario") or {}
     procurement_dna = payload.get("procurementDna") or {}
-    project_name = str(payload.get("projectName") or "Proiect BESS")
+    project_name = str(payload.get("projectName") or "Proiect EnergyPilot")
 
     if not dashboard:
         raise ValueError("Dashboard lipsa pentru export.")
@@ -666,8 +666,8 @@ def generate_complete_report_xlsx(payload: Dict[str, Any]) -> bytes:
     wb = Workbook()
     default = wb.active
     wb.remove(default)
-    wb.properties.creator = "Simulator BESS"
-    wb.properties.title = "Raport BESS valori inghetate"
+    wb.properties.creator = "EnergyPilot"
+    wb.properties.title = "EnergyPilot raport valori inghetate"
 
     create_dashboard_sheet(wb, dashboard, project_name)
     create_financial_sheet(wb, summary)

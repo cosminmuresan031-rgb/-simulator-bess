@@ -125,11 +125,11 @@ class Handler(BaseHTTPRequestHandler):
                 from report_export import generate_complete_report_xlsx, sanitize_filename_part
 
                 content = generate_complete_report_xlsx(payload)
-                project = sanitize_filename_part(payload.get("projectName"), "Proiect_BESS")
+                project = sanitize_filename_part(payload.get("projectName"), "Proiect_EnergyPilot")
                 scenario_name = sanitize_filename_part(dashboard.get("scenarioName") or scenario.get("name"), "scenariu")
                 self.send_bytes(
                     content,
-                    f"Raport_BESS_{project}_{scenario_name}.xlsx",
+                    f"EnergyPilot_Raport_{project}_{scenario_name}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
                 return
